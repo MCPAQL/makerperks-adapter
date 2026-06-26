@@ -1,0 +1,21 @@
+schema: spec-driven
+
+context: |
+  MakerPerks MCP-AQL Adapter — a native MCP-AQL server over the MakerPerks
+  builder-perks directory (github.com/natea/makerperks, MIT).
+
+  Tech stack: TypeScript, Node.js 20+, @modelcontextprotocol/sdk.
+  Protocol: native MCP-AQL (CRUDE semantic endpoints, mandatory introspection,
+  discriminated `{ success, data | error }` wire format). Reference patterns:
+  DollhouseMCP (canonical native MCP-AQL server) and MCPAQL/mcpaql-adapter.
+
+  Decoupling rule: this repo consumes MakerPerks' PUBLISHED data contract only
+  (`perks.json` + the program JSON Schema). No AGPL code crosses into Nate's MIT
+  repo; only MIT data + docs flow back to it.
+
+  Licensing: code/schemas AGPL-3.0 + commercial tiers (matches the MCP-AQL org);
+  docs CC BY 4.0.
+
+  Conventions: spec-driven via OpenSpec (this directory). Conventional commits.
+  This is backend/data/agent work — the makerperks `impeccable` UI rule does not
+  apply here.

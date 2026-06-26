@@ -1,0 +1,5 @@
+dist
+node_modules
+package-lock.json
+# Markdown is hand-wrapped (docs + openspec specs); don't let prettier reflow prose.
+**/*.md
