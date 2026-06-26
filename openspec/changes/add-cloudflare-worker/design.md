@@ -17,17 +17,20 @@ make the data source edge-safe.
 **Non-Goals:** endpoint auth (Stage 1), per-session/stateful operations (Stage 1 via
 `McpAgent`), rate limiting, an SSE fallback, and any change to the semantic surface.
 
-## Decision 1 — `createMcpHandler` (stateless) now; `McpAgent` later
+## Decision 1 — MCP SDK web-standard transport (stateless) now; `McpAgent` later
 
-Use the Cloudflare `agents` SDK `createMcpHandler` — the stateless path — because the READ
-surface needs no per-session state. When Stage 1 adds EXECUTE + confirmation tokens + the
-Execution Safety Loop (genuinely per-session), migrate the Worker to `McpAgent` (a Durable
-Object per session). Choosing stateless now avoids Durable-Object overhead for a read-only
-service and leaves a clean upgrade path.
+Serve the Worker with the MCP SDK's `WebStandardStreamableHTTPServerTransport` in
+**stateless mode** (`sessionIdGenerator: undefined`), reusing the existing
+`createMcpServer(router)`. One server+transport is built per isolate and reused across
+requests. The READ surface needs no per-session state, so this requires **no Durable
+Objects and no extra dependency** — it reuses `@modelcontextprotocol/sdk`, which already
+ships a Fetch-API (`Request`→`Response`) transport. When Stage 1 adds EXECUTE +
+confirmation tokens + the Execution Safety Loop (genuinely per-session), migrate to
+Cloudflare's `McpAgent` (a Durable Object per session).
 
-_Alternatives:_ `McpAgent` now (rejected — Durable Objects for stateless reads is overkill);
-a hand-rolled web-standard Streamable HTTP transport (rejected — reimplements what the
-`agents` SDK gives us).
+_Alternatives:_ Cloudflare `agents` `createMcpHandler` (works, but adds a dependency to do
+what the SDK transport already does for our stateless case); `McpAgent` now (rejected —
+Durable Objects for a read-only service is overkill).
 
 ## Decision 2 — The Worker is a third binding over the same core
 

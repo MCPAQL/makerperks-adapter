@@ -13,28 +13,29 @@
 
 ## 1. Edge-safe data source (`data-source`)
 
-- [ ] 1.1 Make the `node:fs/promises` import in `src/data/source.ts` **lazy** — imported only
-  inside the local file-path branch — so URL sources pull in no filesystem module
-- [ ] 1.2 Confirm a URL source loads with zero filesystem access; local-path source still works
-- [ ] 1.3 Existing `node:test` suite stays green
+- [x] 1.1 Make the `node:fs/promises` import in `src/data/source.ts` **lazy** — a dynamic
+  `import()` inside the local file-path branch — so URL sources pull in no filesystem module
+- [x] 1.2 Confirm a URL source loads with zero filesystem access; local-path source still works
+- [x] 1.3 Existing `node:test` suite stays green (17/17)
 
 ## 2. Worker entry (`hosted-endpoint`)
 
-- [ ] 2.1 Add `src/worker.ts`: build the `Router` via `buildApp` (URL source + TTL cache),
-  register the single `mcp_aql_read` tool, dispatch to `router.dispatch`
-- [ ] 2.2 Serve it over Streamable HTTP using the Cloudflare `agents` SDK `createMcpHandler`
-  (stateless); confirm exact API against current Cloudflare docs
-- [ ] 2.3 Cache the loaded dataset across requests (module-global) with the existing TTL;
-  fetch on first use
+- [x] 2.1 Add `src/worker.ts`: build the `Router` via `buildApp` (URL source + TTL cache),
+  exposing the single `mcp_aql_read` tool via `createMcpServer`
+- [x] 2.2 Serve it over Streamable HTTP using the MCP SDK
+  `WebStandardStreamableHTTPServerTransport` (stateless, `sessionIdGenerator: undefined`),
+  reusing `createMcpServer(router)` — one server+transport per isolate
+- [x] 2.3 Cache the loaded dataset/router across requests (module-global) with the existing
+  TTL; fetch on first use
 
 ## 3. Deploy config (`hosted-endpoint`)
 
-- [ ] 3.1 Add `wrangler.jsonc` (name, `compatibility_date`, `main: src/worker.ts`,
-  `workers_dev` for a pre-DNS smoke URL)
-- [ ] 3.2 Add deps: `agents` (Cloudflare) + `@cloudflare/workers-types` (dev); add a
-  `deploy` npm script
-- [ ] 3.3 Build the Worker bundle locally (`wrangler deploy --dry-run`) and confirm it
-  compiles with no Node-only dependencies
+- [x] 3.1 Add `wrangler.jsonc` (name, `compatibility_date`, `nodejs_compat`,
+  `main: dist/worker.js`, `workers_dev` for a pre-DNS smoke URL)
+- [x] 3.2 Add `wrangler` (dev) + a telemetry-off `deploy` npm script; no new runtime deps
+  (reuses the MCP SDK transport)
+- [x] 3.3 Build the Worker bundle locally (`wrangler deploy --dry-run`) — compiles clean
+  (~648 KiB / 128 KiB gzip), no Node-only dependencies
 
 ## 4. Deploy + DNS (manual auth)
 

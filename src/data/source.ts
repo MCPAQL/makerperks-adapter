@@ -1,7 +1,6 @@
 // MakerPerks data source — load + schema-validate + refresh the PUBLISHED perks.json.
 // Never reads MakerPerks source, never forks, never writes back. See docs/ARCHITECTURE.md §4.
 
-import { readFile } from "node:fs/promises";
 import { Ajv, type ValidateFunction } from "ajv";
 import addFormatsModule from "ajv-formats";
 import { perksPayloadSchema } from "./perks.schema.js";
@@ -135,6 +134,8 @@ export class DataSource {
       }
       return res.text();
     }
+    // Lazy so URL sources (e.g. on Cloudflare Workers) never bundle node:fs.
+    const { readFile } = await import("node:fs/promises");
     return readFile(this.source, "utf8");
   }
 }

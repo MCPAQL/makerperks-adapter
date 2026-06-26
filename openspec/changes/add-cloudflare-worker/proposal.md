@@ -8,19 +8,19 @@ Cloudflare and owns the `mcpaql.com` zone), reusing the transport-agnostic reque
 as a third binding. TLS is terminated by Cloudflare — the principle stays *HTTP at the
 process, HTTPS at the edge*.
 
-Cloudflare offers two remote-MCP paths: **`createMcpHandler()`** (stateless) and
-**`McpAgent`** (a Durable Object per session, stateful). Our Stage 0 surface is
-**read-only and stateless**, so `createMcpHandler()` is the right fit now;
-`McpAgent`/Durable Objects are exactly what the **Stage 1** pipeline will want later
-(per-session confirmation tokens + the Execution Safety Loop). We start stateless and
-graduate when the pipeline needs state.
+Our Stage 0 surface is **read-only and stateless**, so we serve it with the MCP SDK's
+**web-standard Streamable HTTP transport** in stateless mode (`sessionIdGenerator:
+undefined`) — **no Durable Objects, no new dependency**, reusing `createMcpServer(router)`.
+Cloudflare's **`McpAgent`** (a Durable Object per session) is exactly what the **Stage 1**
+pipeline will want later (per-session confirmation tokens + the Execution Safety Loop). We
+start stateless and graduate when the pipeline needs state.
 
 ## What Changes
 
 - **A Cloudflare Worker entry** (`src/worker.ts`) that serves the same `mcp_aql_read`
-  semantic READ surface over **public HTTPS Streamable HTTP**, via the Cloudflare
-  `agents` SDK `createMcpHandler`, dispatching to the existing `Router`. The local
-  Node-`http` transport is unchanged.
+  semantic READ surface over **public HTTPS Streamable HTTP**, using the MCP SDK's
+  web-standard transport (stateless) over the existing `createMcpServer(router)`. The
+  local Node-`http` transport is unchanged.
 - **Edge-safe data loading:** load `perks.json` via `fetch` (no filesystem) and cache
   with the existing TTL; make the `node:fs` import **lazy** so it is never pulled into
   the Worker bundle.
@@ -42,11 +42,11 @@ graduate when the pipeline needs state.
 ## Impact
 
 - **Affected specs:** `hosted-endpoint` (new), `data-source` (added requirement).
-- **Affected code:** new `src/worker.ts` (`createMcpHandler` over the `Router`); refactor
-  `src/data/source.ts` so the `node:fs/promises` import is lazy (URL sources need no fs);
-  `wrangler.jsonc`.
-- **Dependencies:** the Cloudflare `agents` SDK; `@cloudflare/workers-types` and
-  `wrangler` (dev). Exact `agents` API surface confirmed at implementation time.
+- **Affected code:** new `src/worker.ts` (SDK web-standard transport over the `Router`);
+  refactor `src/data/source.ts` so the `node:fs/promises` import is lazy (URL sources need
+  no fs); `wrangler.jsonc`.
+- **Dependencies:** **no new runtime deps** (reuses `@modelcontextprotocol/sdk`'s
+  web-standard transport); `wrangler` (dev) for build/deploy.
 - **Deployment prerequisites (manual / outward-facing):** an authenticated `wrangler`
   session on the Cloudflare account that owns `mcpaql.com` (interactive
   `wrangler login`); a DNS route for `makerperks.mcpaql.com`.
