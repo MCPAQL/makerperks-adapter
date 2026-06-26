@@ -17,26 +17,26 @@
 
 ## 2. OAuth provider wiring
 
-- [ ] 2.1 Restructure `src/worker.ts`: `export default new OAuthProvider({ apiHandler: <MCP
+- [x] 2.1 Restructure `src/worker.ts`: `export default new OAuthProvider({ apiHandler: <MCP
   fetch handler>, apiRoute, defaultHandler: <authorize>, authorizeEndpoint, tokenEndpoint,
   clientRegistrationEndpoint, scopesSupported })` — confirm exact API against the installed types
-- [ ] 2.2 Implement the auto-approve `/authorize` `defaultHandler`: `parseAuthRequest` →
+- [x] 2.2 Implement the auto-approve `/authorize` `defaultHandler`: `parseAuthRequest` →
   `completeAuthorization({ userId: "public", scope, props: {} })` → redirect back with the code
-- [ ] 2.3 Keep the MCP `apiHandler` as the existing stateless transport wiring (surface
+- [x] 2.3 Keep the MCP `apiHandler` as the existing stateless transport wiring (surface
   unchanged); accept the validated request regardless of `props`
-- [ ] 2.4 Remove the hotfix 404 shim for `/.well-known/*` + `/register` (the provider owns them)
+- [x] 2.4 Remove the hotfix 404 shim for `/.well-known/*` + `/register` (the provider owns them)
 
 ## 3. Verify the flow
 
-- [ ] 3.1 Metadata: `/.well-known/oauth-authorization-server` + `/.well-known/oauth-protected-resource`
+- [x] 3.1 Metadata: `/.well-known/oauth-authorization-server` + `/.well-known/oauth-protected-resource`
   return 200 valid metadata
-- [ ] 3.2 Scripted end-to-end: DCR → authorize (auto-approve) → token exchange → MCP call with
+- [x] 3.2 Scripted end-to-end: DCR → authorize (auto-approve) → token exchange → MCP call with
   the token returns `introspect` (4 ops) + a READ op
-- [ ] 3.3 A no-token MCP request is handled per the provider's policy (unauth → 401 with
+- [x] 3.3 A no-token MCP request is handled per the provider's policy (unauth → 401 with
   `WWW-Authenticate`, so clients discover the auth server)
 
 ## 4. Deploy + verify with a real client
 
-- [ ] 4.1 Deploy; confirm the OAuth metadata + MCP both live at `https://makerperks.mcpaql.com`
+- [x] 4.1 Deploy; confirm the OAuth metadata + MCP both live at `https://makerperks.mcpaql.com`
 - [ ] 4.2 **(user)** Add the connector in **claude.ai** and confirm it registers + connects
-- [ ] 4.3 `openspec validate add-endpoint-oauth --strict` + typecheck/build/lint green
+- [x] 4.3 `openspec validate add-endpoint-oauth --strict` + typecheck/build/lint green
