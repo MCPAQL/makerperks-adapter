@@ -19,6 +19,7 @@
     "spec:validate": "OPENSPEC_TELEMETRY=0 openspec validate"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "4.20260626.1",
     "@eslint/js": "10.0.1",
     "@fission-ai/openspec": "1.4.1",
     "@types/node": "26.0.1",
@@ -30,6 +31,7 @@
     "wrangler": "4.105.0"
   },
   "dependencies": {
+    "@cloudflare/workers-oauth-provider": "0.8.1",
     "@modelcontextprotocol/sdk": "1.29.0",
     "fuse.js": "7.4.2"
   }

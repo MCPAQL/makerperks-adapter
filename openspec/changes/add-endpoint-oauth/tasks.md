@@ -10,9 +10,10 @@
 
 ## 1. Infra + deps
 
-- [ ] 1.1 Create a Cloudflare KV namespace `OAUTH_KV` (`wrangler kv namespace create`) and bind
-  it in `wrangler.jsonc`
-- [ ] 1.2 Add `@cloudflare/workers-oauth-provider` (runtime, pinned)
+- [x] 1.1 Create a Cloudflare KV namespace `OAUTH_KV` (`wrangler kv namespace create`,
+  id `609312bd…`) and bind it in `wrangler.jsonc`
+- [x] 1.2 Add `@cloudflare/workers-oauth-provider` (runtime, pinned `0.8.1`) +
+  `@cloudflare/workers-types` (dev, for the Worker's Cloudflare types)
 
 ## 2. OAuth provider wiring
 
