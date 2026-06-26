@@ -117,8 +117,12 @@ Acting on a maker's behalf is the sensitive part. Rules, designed in from Stage 
   both handled: `ajv` is unusable on Workers (`new Function`), and a bare global
   `fetch` reference throws "Illegal invocation"; a stateless transport also can't be
   reused, so a fresh server+transport is built per request.
-- **Remaining:** endpoint **auth** (public read-only for now; arrives with the Stage 1
-  pipeline via `McpAgent` + Durable Objects), and there is still **no MCP-AQL adapter
+- **OAuth 2.1 + dynamic client registration is live** in front of the endpoint
+  (`@cloudflare/workers-oauth-provider`, grants in the `OAUTH_KV` namespace) so
+  OAuth-mandatory clients (claude.ai) register and connect. But it is **anonymous /
+  auto-approve** — client **compatibility, not access control** (the data is public).
+- **Remaining:** real per-user, scoped **authorization/gating** (Stage 1, likely
+  `McpAgent` + Durable Objects), and there is still **no MCP-AQL adapter
   registry/marketplace**.
 - The **adapter-generator is a 1:1 projection of an existing MCP server** (bearer-token
   only); it does not synthesize signup flows. It helps Stage 2 only for providers that
