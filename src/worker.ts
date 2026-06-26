@@ -25,6 +25,13 @@ function getRouter(env: Env): Promise<Router> {
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     try {
+      const path = new URL(request.url).pathname;
+      // Public / no-auth endpoint: cleanly 404 OAuth discovery + registration so an
+      // auth-probing MCP client falls back to connecting anonymously. (Passing these to
+      // the MCP transport returns a 406 that breaks the client's OAuth registration.)
+      if (path.startsWith("/.well-known/") || path === "/register") {
+        return new Response("Not Found", { status: 404 });
+      }
       const router = await getRouter(env);
       const server = createMcpServer(router);
       const transport = new WebStandardStreamableHTTPServerTransport({
