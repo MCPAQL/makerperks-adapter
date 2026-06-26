@@ -81,8 +81,9 @@ primitives above.
 
 ## 4. Data source & license boundary
 
-The adapter loads MakerPerks' **published** `perks.json`, validates it against the
-program JSON Schema with `ajv` (mirroring MakerPerks' own CI gate), holds it in memory,
+The adapter loads MakerPerks' **published** `perks.json`, validates it with a small
+**eval-free** payload checker (not `ajv` — Workers disallow its `new Function` codegen),
+holds it in memory,
 and exposes a refresh path (trigger + configurable TTL). It never reads the source
 content collection, forks the data, or writes back through code.
 
@@ -107,14 +108,18 @@ Acting on a maker's behalf is the sensitive part. Rules, designed in from Stage 
   action taken; **Challenge-Response** for payment / real-identity steps.
 - Never auto-assert false eligibility.
 
-## 6. Infra gaps (known, for Stage 2 hosting)
+## 6. Hosting (done) & remaining gaps
 
-- The MCP-AQL **adapter-studio hosted tier is unbuilt**, and the adapter-generator
-  emits **Node stdio** servers, not Workers. So the public Streamable HTTP endpoint
-  needs a **Worker/edge shim** around the HTTP transport + auth — that is real Stage-2
-  work, not a flip of a switch.
-- There is **no MCP-AQL adapter registry/marketplace** yet; distribution is via the
-  stdio package (add-to-client) and, later, the hosted URL.
+- **The public HTTPS endpoint is live** at `https://makerperks.mcpaql.com` (plus a
+  `*.workers.dev` URL) — a Cloudflare **Worker** binding over the same core (third
+  transport), serving the stateless READ surface via the MCP SDK's web-standard
+  Streamable HTTP transport (no Durable Objects, no extra deps). Two edge lessons,
+  both handled: `ajv` is unusable on Workers (`new Function`), and a bare global
+  `fetch` reference throws "Illegal invocation"; a stateless transport also can't be
+  reused, so a fresh server+transport is built per request.
+- **Remaining:** endpoint **auth** (public read-only for now; arrives with the Stage 1
+  pipeline via `McpAgent` + Durable Objects), and there is still **no MCP-AQL adapter
+  registry/marketplace**.
 - The **adapter-generator is a 1:1 projection of an existing MCP server** (bearer-token
   only); it does not synthesize signup flows. It helps Stage 2 only for providers that
   already expose an MCP/API server — not for web-only signups.

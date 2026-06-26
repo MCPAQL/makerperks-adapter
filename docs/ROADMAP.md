@@ -122,10 +122,10 @@ providers, with the human in the loop exactly as much as they choose.
 - **Expand provider coverage** incrementally (the long tail; each provider flow is
   bespoke; the MCP-AQL adapter-generator helps only for providers that already expose
   an MCP/API server).
-- **Hosted Streamable HTTP endpoint.** Stand up the public remote endpoint
-  (paste-a-URL). Known gap: the MCP-AQL studio hosted tier is unbuilt and generated
-  adapters are Node stdio, so this needs a Worker/edge shim around the HTTP transport
-  + auth. (See ARCHITECTURE "Infra gaps.")
+- **Hosted Streamable HTTP endpoint — DONE (2026-06-26).** Live at
+  `https://makerperks.mcpaql.com` via a Cloudflare Worker (OpenSpec change
+  `add-cloudflare-worker`, archived). Public read-only; endpoint auth arrives with the
+  Stage 1 pipeline.
 - Optional: list the adapter / MCP-AQL in MakerPerks' agent section (an MIT-safe data
   PR to Nate) to close the traffic loop.
 
@@ -162,4 +162,6 @@ providers, with the human in the loop exactly as much as they choose.
   closed).
 - **Next:** Stage 1 (application pipeline + the autonomy switch) — to be proposed as new
   OpenSpec change(s) when it begins.
-- **Not started:** Stage 2.
+- **Hosted HTTPS endpoint — DONE** (2026-06-26): `https://makerperks.mcpaql.com` via a
+  Cloudflare Worker (`add-cloudflare-worker`, archived; issues #6–#10 closed).
+- **Not started:** Stage 1; the rest of Stage 2 (web-only handoff, coverage).
