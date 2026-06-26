@@ -38,5 +38,5 @@
 ## 4. Deploy + verify with a real client
 
 - [x] 4.1 Deploy; confirm the OAuth metadata + MCP both live at `https://makerperks.mcpaql.com`
-- [ ] 4.2 **(user)** Add the connector in **claude.ai** and confirm it registers + connects
+- [x] 4.2 **(user)** Add the connector in **claude.ai** — registers (DCR) + connects ✓
 - [x] 4.3 `openspec validate add-endpoint-oauth --strict` + typecheck/build/lint green
