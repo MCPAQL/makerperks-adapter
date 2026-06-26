@@ -16,14 +16,18 @@
 
 ## 1. Deps + isolated deploy config (`hosted-endpoint`)
 
-- [ ] 1.1 Add `agents` (Cloudflare McpAgent) to dependencies, pinned exact (`.npmrc`)
-- [ ] 1.2 Add `wrangler.dev.jsonc`: distinct `name` (`makerperks-adapter-dev`),
+- [x] 1.1 Add `agents` (Cloudflare McpAgent) to dependencies, pinned exact (`agents@0.17.0`)
+- [x] 1.2 Add `wrangler.dev.jsonc`: distinct `name` (`makerperks-adapter-dev`),
   `main: dist/worker-stateful.js`, the test route (`makerperks-dev.mcpaql.com`,
-  `custom_domain`), `workers_dev`, a **separate** `OAUTH_KV` namespace binding, and the
-  Durable Object binding + migration for the `McpAgent` class
-- [ ] 1.3 Add a telemetry-off `deploy:dev` npm script targeting `wrangler.dev.jsonc`;
+  `custom_domain`), `workers_dev`, a **separate** `OAUTH_KV` namespace binding (placeholder
+  id — user creates it in §4), and the `MCP_OBJECT` Durable Object binding + sqlite
+  migration for the `MakerPerksMcpAgent` class
+- [x] 1.3 Add a telemetry-off `deploy:dev` npm script targeting `wrangler.dev.jsonc`;
   leave `npm run deploy` (live) and `src/worker.ts`/`wrangler.jsonc` untouched
-- [ ] 1.4 `wrangler deploy --dry-run -c wrangler.dev.jsonc` builds clean (no Node-only deps)
+- [x] 1.4 `wrangler deploy --dry-run -c wrangler.dev.jsonc` builds clean (2022 KiB /
+  370 KiB gzip; `MCP_OBJECT` DO + `OAUTH_KV` bind; runs under `nodejs_compat`). A minimal
+  `src/worker-stateful.ts` McpAgent entry was added here so the DO binding resolves; its
+  typed `SessionState` is fleshed out in §2
 
 ## 2. Per-session substrate via McpAgent + Durable Object (`stateful-session`)
 

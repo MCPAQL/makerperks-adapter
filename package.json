@@ -11,6 +11,7 @@
     "dev": "tsc --watch",
     "start": "node dist/index.js",
     "deploy": "npm run build && WRANGLER_SEND_METRICS=false wrangler deploy",
+    "deploy:dev": "npm run build && WRANGLER_SEND_METRICS=false wrangler deploy -c wrangler.dev.jsonc",
     "test": "npm run build && node --test",
     "lint": "eslint . && prettier --check .",
     "format": "prettier --write .",
@@ -33,6 +34,7 @@
   "dependencies": {
     "@cloudflare/workers-oauth-provider": "0.8.1",
     "@modelcontextprotocol/sdk": "1.29.0",
+    "agents": "0.17.0",
     "fuse.js": "7.4.2"
   }
 }

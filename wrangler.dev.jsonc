@@ -1,0 +1,23 @@
+{
+  // Stage 1 STATEFUL deployment — separate from the live makerperks.mcpaql.com.
+  // Deploy with `npm run deploy:dev`. The live Worker (wrangler.jsonc + src/worker.ts)
+  // is never touched by this config. See openspec/changes/add-stateful-hosting (#20).
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "makerperks-adapter-dev",
+  "main": "dist/worker-stateful.js",
+  "compatibility_date": "2026-06-03",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "observability": { "enabled": true },
+  "routes": [{ "pattern": "makerperks-dev.mcpaql.com", "custom_domain": true }],
+  // A SEPARATE OAuth grant store — real-auth grants must not mingle with the live
+  // anonymous grants. The user creates this namespace and fills the id in §4 (#27).
+  "kv_namespaces": [
+    { "binding": "OAUTH_KV", "id": "00000000000000000000000000000000" },
+  ],
+  // One Durable Object per MCP session (McpAgent). Default binding name `MCP_OBJECT`.
+  "durable_objects": {
+    "bindings": [{ "name": "MCP_OBJECT", "class_name": "MakerPerksMcpAgent" }],
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["MakerPerksMcpAgent"] }],
+}
