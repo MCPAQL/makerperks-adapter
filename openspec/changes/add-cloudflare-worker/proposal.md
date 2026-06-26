@@ -45,8 +45,10 @@ start stateless and graduate when the pipeline needs state.
 - **Affected code:** new `src/worker.ts` (SDK web-standard transport over the `Router`);
   refactor `src/data/source.ts` so the `node:fs/promises` import is lazy (URL sources need
   no fs); `wrangler.jsonc`.
-- **Dependencies:** **no new runtime deps** (reuses `@modelcontextprotocol/sdk`'s
-  web-standard transport); `wrangler` (dev) for build/deploy.
+- **Dependencies:** **removed** `ajv`/`ajv-formats` (their runtime `new Function` codegen
+  is disallowed on Workers) in favor of a small eval-free validator; no new runtime deps
+  (reuses `@modelcontextprotocol/sdk`'s web-standard transport); `wrangler` (dev) for
+  build/deploy.
 - **Deployment prerequisites (manual / outward-facing):** an authenticated `wrangler`
   session on the Cloudflare account that owns `mcpaql.com` (interactive
   `wrangler login`); a DNS route for `makerperks.mcpaql.com`.

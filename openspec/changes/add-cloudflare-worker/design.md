@@ -21,10 +21,12 @@ make the data source edge-safe.
 
 Serve the Worker with the MCP SDK's `WebStandardStreamableHTTPServerTransport` in
 **stateless mode** (`sessionIdGenerator: undefined`), reusing the existing
-`createMcpServer(router)`. One server+transport is built per isolate and reused across
-requests. The READ surface needs no per-session state, so this requires **no Durable
-Objects and no extra dependency** — it reuses `@modelcontextprotocol/sdk`, which already
-ships a Fetch-API (`Request`→`Response`) transport. When Stage 1 adds EXECUTE +
+`createMcpServer(router)`. The data/router is cached per isolate, but a **fresh server +
+transport is created per request** — a stateless transport cannot be reused across
+requests (it throws if you try). The READ surface needs no per-session state, so this
+requires **no Durable Objects and no extra dependency** — it reuses
+`@modelcontextprotocol/sdk`, which already ships a Fetch-API (`Request`→`Response`)
+transport. When Stage 1 adds EXECUTE +
 confirmation tokens + the Execution Safety Loop (genuinely per-session), migrate to
 Cloudflare's `McpAgent` (a Durable Object per session).
 
@@ -46,6 +48,13 @@ On Workers there is no filesystem and no `node:http`. The data source already de
 import **lazy** (imported only inside the local-file branch) so it is never bundled for URL
 sources. Data is fetched on first use and cached with the existing TTL (a module-global
 cache across requests in the same isolate is sufficient for a read-only service).
+
+Two edge gotchas surfaced and are handled: (1) **`ajv` is removed** — it compiles
+validators with `new Function`, which Workers disallow (no `eval`/codegen), so runtime
+`ajv.compile` throws on the edge; the data source now uses a small, dependency-free,
+eval-free payload validator with the same fail-loud behavior. (2) **`fetch` must be
+wrapped, not stored bare** — a detached global `fetch` reference throws "Illegal
+invocation" on Workers, so the data source calls it through a small wrapper.
 
 _Alternatives:_ Cloudflare KV / Cache API for the dataset (reasonable later for cross-isolate
 sharing; unnecessary for v1 at ~135 KB and a short TTL).

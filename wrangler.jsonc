@@ -6,4 +6,5 @@
   "compatibility_flags": ["nodejs_compat"],
   "workers_dev": true,
   "observability": { "enabled": true },
+  "routes": [{ "pattern": "makerperks.mcpaql.com", "custom_domain": true }],
 }

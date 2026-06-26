@@ -39,13 +39,15 @@
 
 ## 4. Deploy + DNS (manual auth)
 
-- [ ] 4.1 **(user)** `wrangler login` on the Cloudflare account that owns `mcpaql.com`
-- [ ] 4.2 Deploy; add the route binding `makerperks.mcpaql.com` on the `mcpaql.com` zone
-- [ ] 4.3 Confirm HTTPS + a valid certificate at `https://makerperks.mcpaql.com`
+- [x] 4.1 **(user)** `wrangler login` on the Cloudflare account that owns `mcpaql.com`
+- [x] 4.2 Deploy; bind the `makerperks.mcpaql.com` custom domain on the `mcpaql.com` zone
+- [x] 4.3 Confirm HTTPS + a valid certificate at `https://makerperks.mcpaql.com`
+  (HTTP 200, `ssl_verify_result` 0)
 
 ## 5. Verify
 
-- [ ] 5.1 Connect a real MCP client to `https://makerperks.mcpaql.com`; list tools; call
-  `introspect` and a READ op
-- [ ] 5.2 Parity: the hosted endpoint returns the same results as the local transports
-- [ ] 5.3 `openspec validate add-cloudflare-worker --strict` + typecheck/build/lint green
+- [x] 5.1 Connect a real MCP client to `https://makerperks.mcpaql.com` (and the
+  `workers.dev` URL); list tools (`mcp_aql_read`); call `introspect` (4 ops) and READ ops
+- [x] 5.2 Parity: the hosted endpoint returns the same operations/results as the local
+  transports (e.g. `search "anthropic"` → real live hits)
+- [x] 5.3 `openspec validate add-cloudflare-worker --strict` + typecheck/build/lint green
