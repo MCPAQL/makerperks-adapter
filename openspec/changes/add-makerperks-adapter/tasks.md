@@ -50,14 +50,14 @@
 
 ## 4. Transports (`server-transport`)
 
-- [ ] 4.1 Wire the **stdio** binding (`StdioServerTransport`) as the default launch
+- [x] 4.1 Wire the **stdio** binding (`StdioServerTransport`) as the default launch
   mode
-- [ ] 4.2 Wire the **Streamable HTTP** binding (`StreamableHTTPServerTransport`):
+- [x] 4.2 Wire the **Streamable HTTP** binding (`StreamableHTTPServerTransport`):
   single endpoint, POST + optional SSE, `Mcp-Session-Id` session management, `Origin`
   validation; do NOT use the deprecated HTTP+SSE transport
-- [ ] 4.3 Launch selection (`--transport stdio|http`, default stdio); both share the
+- [x] 4.3 Launch selection (`--transport stdio|http`, default stdio); both share the
   same request core
-- [ ] 4.4 Release session-scoped state on session termination / disconnect
+- [x] 4.4 Release session-scoped state on session termination / disconnect
 
 ## 5. Verify
 
