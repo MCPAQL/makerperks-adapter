@@ -34,17 +34,18 @@
 
 ## 3. Request core + READ surface (`directory-query`)
 
-- [ ] 3.1 Implement the MCP-AQL request core: parse `{ operation, params }`, route by
+- [x] 3.1 Implement the MCP-AQL request core: parse `{ operation, params }`, route by
   operation, validate params (required, type, reject unknown →
   `VALIDATION_UNKNOWN_PARAM`), return discriminated `{ success, data | error }`
-- [ ] 3.2 Implement `list_programs` with filters (audience/persona, tag, region,
+- [x] 3.2 Implement `list_programs` with filters (audience/persona, tag, region,
   min value); results carry decision signal (title, provider, audience, value,
   region, eligibility/caveats, verified date, redemption URL)
-- [ ] 3.3 Implement `get_program` by identifier/slug
-- [ ] 3.4 Implement `search_programs` (fuzzy, ranked) via `fuse.js`
-- [ ] 3.5 Implement mandatory `introspect` (all operations + a single named
-  operation); advertise introspection in tool registration
-- [ ] 3.6 Register the READ endpoint family via a router built to accept further
+- [x] 3.3 Implement `get_program` by identifier/slug
+- [x] 3.4 Implement `search_programs` (fuzzy, ranked) via `fuse.js`
+- [x] 3.5 Implement mandatory `introspect` (all operations + a single named
+  operation). (Exposing it as an MCP tool in registration lands with the transports
+  in §4.)
+- [x] 3.6 Register the READ endpoint family via a router built to accept further
   families later (no restructuring needed to add EXECUTE)
 
 ## 4. Transports (`server-transport`)

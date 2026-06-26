@@ -1,13 +1,13 @@
 // Entry point: select a transport at launch; both share one transport-agnostic core.
-// TODO(task 4.3): real arg parsing; wire DataSource + read operations into the router.
+// TODO(task 4.3): richer arg parsing (source, port) once transports land.
 
-import { Router } from "./core/router.js";
+import { buildApp } from "./app.js";
 import { startStdio } from "./transports/stdio.js";
 import { startHttp } from "./transports/http.js";
 
 async function main(): Promise<void> {
   const useHttp = process.argv.includes("--transport=http");
-  const router = new Router();
+  const { router } = await buildApp();
 
   if (useHttp) {
     await startHttp(router);
