@@ -1,0 +1,44 @@
+{
+  "name": "MakerPerks",
+  "description": "A browseable, agent-friendly directory of builder perks.",
+  "homepage": "https://makerperks.com",
+  "generated": "2026-06-25",
+  "count": 2,
+  "programs": [
+    {
+      "slug": "anthropic/anthropic-startup-program",
+      "title": "Anthropic Startup Program",
+      "provider": "anthropic",
+      "url": "https://claude.com/programs/startups",
+      "audience": ["startup"],
+      "tags": ["ai"],
+      "value_type": "credits",
+      "currency": "USD",
+      "max_value": 25000,
+      "value_display": "Up to $25,000",
+      "region": "global",
+      "status": "Active",
+      "aggregator": false,
+      "unlocks": [],
+      "sources": ["linkedin-800k"],
+      "verified": "2026-06-25"
+    },
+    {
+      "slug": "neon/neon-free-tier",
+      "title": "Neon Free Tier",
+      "provider": "neon",
+      "url": "https://neon.tech/",
+      "audience": ["indie"],
+      "tags": ["database"],
+      "value_type": "free_tier",
+      "max_value": 0,
+      "value_display": "Free tier",
+      "region": "global",
+      "status": "Active",
+      "aggregator": false,
+      "unlocks": [],
+      "sources": ["awesome-builder-programs"],
+      "verified": "2026-06-25"
+    }
+  ]
+}
