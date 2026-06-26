@@ -153,9 +153,13 @@ providers, with the human in the loop exactly as much as they choose.
 
 ## 7. Status
 
-- **Done:** fork (`mickdarling/makerperks` → `~/Developer/makerperks`, upstream wired);
-  adapter repo scaffolded; Stage 0 OpenSpec change `add-makerperks-adapter` written and
-  passing `openspec validate --strict`; OpenSpec CLI installed local/pinned/telemetry-off.
-- **Active:** implementing Stage 0 (`add-makerperks-adapter`, 0/22 tasks at last update).
-- **Not started:** Stage 1, Stage 2 (documented above; OpenSpec changes to be proposed
-  when each begins).
+- **Stage 0 — DONE** (2026-06-26): `add-makerperks-adapter` implemented — all 22 tasks
+  complete, `--strict`-validated, and **archived into `openspec/specs/`** (baseline:
+  `server-transport`, `directory-query`, `data-source`). The adapter is a working MCP
+  server over **stdio and Streamable HTTP** exposing a single `mcp_aql_read` tool (READ
+  ops + mandatory introspection) over the live `perks.json`. 17 `node:test` tests green;
+  typecheck/lint/build clean. Repo: github.com/MCPAQL/makerperks-adapter (issues #1–#5
+  closed).
+- **Next:** Stage 1 (application pipeline + the autonomy switch) — to be proposed as new
+  OpenSpec change(s) when it begins.
+- **Not started:** Stage 2.
