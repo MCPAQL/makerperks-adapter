@@ -61,14 +61,14 @@
 
 ## 5. Verify
 
-- [ ] 5.1 Transport parity: the same operation + params over stdio and over Streamable
+- [x] 5.1 Transport parity: the same operation + params over stdio and over Streamable
   HTTP returns identical results and wire format
-- [ ] 5.2 READ behavior: list/get/search/introspect each return the discriminated
+- [x] 5.2 READ behavior: list/get/search/introspect each return the discriminated
   format; an unknown param is rejected with `VALIDATION_UNKNOWN_PARAM`; a typo query
   still finds the right program; an empty match is a success, not an error
-- [ ] 5.3 Data: a schema-invalid `perks.json` fails loudly; a refresh reflects an
+- [x] 5.3 Data: a schema-invalid `perks.json` fails loudly; a refresh reflects an
   upstream change
-- [ ] 5.4 Connect from a real MCP client over stdio (local add-to-client) and over
+- [x] 5.4 Connect from a real MCP client over stdio (local add-to-client) and over
   Streamable HTTP (URL) and confirm discovery + a query both work
-- [ ] 5.5 `openspec validate add-makerperks-adapter --strict` passes; typecheck +
+- [x] 5.5 `openspec validate add-makerperks-adapter --strict` passes; typecheck +
   build + lint green
