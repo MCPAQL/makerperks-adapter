@@ -5,27 +5,45 @@ A native [MCP-AQL](https://github.com/MCPAQL/spec) server over
 directory of builder perks (free credits, discounts, and programs for startups,
 students, OSS maintainers, indie devs, and non-profits).
 
-It lets a maker's AI agent query the directory through **one token-cheap semantic
-endpoint** instead of a wall of discrete MCP tools (~96% fewer registration tokens),
-with runtime introspection for discovery. Later changes add an application pipeline
-that drives the actual perk signups under a user-controlled autonomy switch.
+It exposes the **whole** directory (200+ programs) to an AI agent through **one
+token-cheap semantic tool** (`mcp_aql_read`, **~120 tokens**) instead of a wall of
+discrete MCP tools — the operations are discovered at runtime via introspection.
+That's ~95%+ fewer tool-registration tokens than a conventional "a tool per query"
+server.
 
-- **Runs two ways from day one:** local **stdio** (add it to any MCP client) and
-  remote **Streamable HTTP** (connect a hosted URL — zero install).
-- **Decoupled from MakerPerks:** consumes the published `perks.json` + JSON Schema.
-  No fork divergence; updates flow on refresh.
+## Connect
+
+- **Hosted (zero install):** add **`https://makerperks.mcpaql.com`** as a remote MCP
+  connector (claude.ai, Claude Code, Cursor, …). OAuth registers automatically.
+- **Local (stdio):** `npm install && npm run build`, then point your MCP client at
+  `node dist/index.js`.
+
+Then call `mcp_aql_read` with `{ "operation": "introspect" }` to discover the
+operations: `list_programs`, `get_program`, `search_programs`.
+
+## How it works
+
+- Native MCP-AQL **READ** surface over MakerPerks' published `perks.json` — decoupled
+  from MakerPerks (no fork divergence; updates flow on refresh).
+- **stdio + Streamable HTTP** transports over one transport-agnostic core.
+- Hosted on **Cloudflare Workers** (web-standard Streamable HTTP), fronted by **OAuth
+  2.1 + dynamic client registration** so OAuth-mandatory clients connect. The endpoint
+  is **public and read-only**.
+
+## Status
+
+- **Live:** read adapter + dual transport + Cloudflare hosting + OAuth — done and
+  archived (`openspec/specs/`).
+- **Next — Stage 1:** an application pipeline that drives the actual perk signups under a
+  user-controlled autonomy switch. Tracked as GitHub issues (epic
+  [#22](https://github.com/MCPAQL/makerperks-adapter/issues/22)).
 
 ## Documentation
 
 - [`CLAUDE.md`](CLAUDE.md) — project configuration & conventions
-- [`docs/ROADMAP.md`](docs/ROADMAP.md) — the full staged plan (Stage 0 → 1 → 2)
+- [`docs/ROADMAP.md`](docs/ROADMAP.md) — the staged plan
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — system model & MCP-AQL primitives
-- [`openspec/changes/`](openspec/changes/) — active, `--strict`-validatable specs
-
-## Status
-
-Stage 0 in progress — the read adapter + dual-transport foundation (OpenSpec change
-`add-makerperks-adapter`). See [`docs/ROADMAP.md`](docs/ROADMAP.md) §7.
+- [`openspec/specs/`](openspec/specs/) — the spec baseline (capabilities)
 
 ## License
 
