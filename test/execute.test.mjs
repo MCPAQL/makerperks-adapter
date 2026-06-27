@@ -273,6 +273,30 @@ test("a low-danger provider does not halt", async () => {
   assert.notEqual(sub.data.status, "halted");
 });
 
+// --- #18 §1: autonomy set/get ---
+
+test("set_autonomy / get_autonomy round-trip; default review_each; invalid rejected", async () => {
+  const { router } = await withStore();
+  assert.equal(
+    (await router.dispatch({ operation: "get_autonomy" })).data.autonomy,
+    "review_each",
+  );
+  const set = await router.dispatch({
+    operation: "set_autonomy",
+    params: { mode: "full_auto" },
+  });
+  assert.equal(set.data.autonomy, "full_auto");
+  assert.equal(
+    (await router.dispatch({ operation: "get_autonomy" })).data.autonomy,
+    "full_auto",
+  );
+  const bad = await router.dispatch({
+    operation: "set_autonomy",
+    params: { mode: "yolo" },
+  });
+  assert.equal(bad.error.code, "VALIDATION_INVALID_TYPE");
+});
+
 // --- §4: opt-in Execution Safety Loop ---
 
 test("record_execution_step: low danger → go, mid → pause, high → stop", async () => {

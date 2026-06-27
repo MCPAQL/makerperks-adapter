@@ -40,18 +40,47 @@ export interface ConfirmationToken {
   used: boolean;
 }
 
+/** The maker's autonomy dial (#18) — how often the pipeline pauses for approval. */
+export type AutonomyMode = "review_each" | "auto_low_risk" | "full_auto";
+export type AutonomyDecision = "go" | "pause" | "stop";
+
+export const AUTONOMY_MODES: readonly AutonomyMode[] = [
+  "review_each",
+  "auto_low_risk",
+  "full_auto",
+];
+
+// Danger at/above this pauses for confirmation; below it proceeds. (danger >= 3 always stops.)
+const GATE_BY_MODE: Record<AutonomyMode, number> = {
+  review_each: 0, // pause every submission
+  auto_low_risk: 2, // auto 0–1, escalate >= 2
+  full_auto: 3, // auto 0–2; only the riskiest (>= 3) stop
+};
+
+/**
+ * Map an autonomy mode + a step's danger level to a decision. `danger >= 3` (payment / real
+ * identity) ALWAYS stops for an out-of-band challenge, regardless of mode. Pure policy — the
+ * pipeline and the safety loop both call this, so they always agree.
+ */
+export function autonomyDecision(mode: AutonomyMode, danger: number): AutonomyDecision {
+  if (danger >= 3) return "stop";
+  return danger >= GATE_BY_MODE[mode] ? "pause" : "go";
+}
+
 /** Session-scoped state the MCP-AQL protocol does not persist itself. */
 export interface SessionState {
   confirmationTokens: Record<string, ConfirmationToken>;
   executions: Record<string, Execution>;
+  /** The autonomy dial (#18); fresh sessions start at the safest mode. */
+  autonomy: AutonomyMode;
 }
 
 /**
- * A fresh, empty SessionState. Each session gets its OWN — never a shared reference — so
- * state in one session can never leak into another.
+ * A fresh SessionState. Each session gets its OWN — never a shared reference — so state in
+ * one session can never leak into another. Autonomy defaults to the safest mode.
  */
 export function freshSessionState(): SessionState {
-  return { confirmationTokens: {}, executions: {} };
+  return { confirmationTokens: {}, executions: {}, autonomy: "review_each" };
 }
 
 /**

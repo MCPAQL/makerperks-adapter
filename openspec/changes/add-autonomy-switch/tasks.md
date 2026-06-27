@@ -11,12 +11,13 @@
 
 ## 1. Modes + policy + set/get ops
 
-- [ ] 1.1 `AutonomyMode` (`review_each` | `auto_low_risk` | `full_auto`) + `autonomyDecision(mode,
-  danger) → go|pause|stop` (`danger ≥ 3 → stop` always; else mode gate threshold 0/2/3) in the
-  session module; `SessionState.autonomy` defaults to `review_each`
-- [ ] 1.2 `set_autonomy(mode)` (validated enum) and `get_autonomy()` EXECUTE ops; descriptions
+- [x] 1.1 `AutonomyMode` + `AUTONOMY_MODES` + pure `autonomyDecision(mode, danger)` (`danger ≥
+  3 → stop` always; else gate 0/2/3) in `session/state.ts`; `SessionState.autonomy` defaults
+  to `review_each`
+- [x] 1.2 `set_autonomy(mode)` (enum-validated) + `get_autonomy()` EXECUTE ops; descriptions
   tell the agent to ask up front + report intent
-- [ ] 1.3 Unit-test `autonomyDecision` across modes × danger 0–4; set/get round-trip; default
+- [x] 1.3 Unit-tested `autonomyDecision` (mode × danger), set/get round-trip + default +
+  invalid-rejected; session-state shape updated. 68 green
 
 ## 2. Apply the mode in the pipeline
 

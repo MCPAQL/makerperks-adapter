@@ -10,7 +10,9 @@ import { ok, err } from "../core/wire.js";
 import type { Router } from "../core/router.js";
 import type { DataSource } from "../data/source.js";
 import { getApplicationFlow } from "../data/flows.js";
+import { AUTONOMY_MODES } from "../session/state.js";
 import type {
+  AutonomyMode,
   ConfirmationToken,
   Execution,
   ExecutionStage,
@@ -380,5 +382,39 @@ export function registerExecuteOperations(
       }
       return ok({ directive: { decision, danger_level: danger, reason, hint } });
     },
+  });
+
+  // The autonomy switch (#18): the maker's dial over the gate. Ask up front, report intent.
+  router.register({
+    name: "set_autonomy",
+    semanticCategory: "EXECUTE",
+    description:
+      "Set this session's autonomy mode — ASK the maker up front and report intent. " +
+      "review_each = pause every submission; auto_low_risk = auto danger 0–1, pause ≥ 2; " +
+      "full_auto = auto danger 0–2, stop ≥ 3 (payment / real identity).",
+    params: {
+      mode: {
+        type: "string",
+        required: true,
+        enum: AUTONOMY_MODES,
+        description: "review_each | auto_low_risk | full_auto.",
+      },
+    },
+    returns: "An object with the set `autonomy` mode.",
+    handler: async (params) => {
+      const mode = params.mode as AutonomyMode;
+      const state = store.get();
+      await store.set({ ...state, autonomy: mode });
+      return ok({ autonomy: mode });
+    },
+  });
+
+  router.register({
+    name: "get_autonomy",
+    semanticCategory: "EXECUTE",
+    description: "Get this session's current autonomy mode.",
+    params: {},
+    returns: "An object with the current `autonomy` mode.",
+    handler: async () => ok({ autonomy: store.get().autonomy ?? "review_each" }),
   });
 }
