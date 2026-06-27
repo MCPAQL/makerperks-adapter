@@ -59,19 +59,22 @@
 
 ## 4. Isolated deploy + verify (manual auth — user)
 
-- [ ] 4.1 **(user)** Register a GitHub OAuth App (callback on the test host); set
-  `GITHUB_CLIENT_ID`/`GITHUB_CLIENT_SECRET` as Worker secrets
-- [ ] 4.2 **(user)** Create the dev `OAUTH_KV` namespace; put its id in
-  `wrangler.dev.jsonc`
-- [ ] 4.3 Deploy the stateful Worker (`npm run deploy:dev`); bind
-  `makerperks-dev.mcpaql.com` on the `mcpaql.com` zone
-- [ ] 4.4 Connect a real MCP client (claude.ai) through the **GitHub login**; confirm a
-  session DO is instantiated and identity is present in `props`; READ ops return live results
-- [ ] 4.5 **Verify the live endpoint is unchanged** — `https://makerperks.mcpaql.com` still
-  serves the Stage 0 anonymous build (HTTP 200, `mcp_aql_read`, READ parity), separate
-  Worker/KV/route confirmed
+- [x] 4.1 **(user)** Registered a GitHub OAuth App (callback
+  `https://makerperks-dev.mcpaql.com/callback`); `GITHUB_CLIENT_ID`/`GITHUB_CLIENT_SECRET`
+  set as Worker secrets (via a masked macOS dialog → `wrangler secret put`, never in argv)
+- [x] 4.2 Created a **separate** dev namespace `OAUTH_KV_DEV` (`ff6361cd…`), distinct from
+  the live `OAUTH_KV` (`609312bd…`), and wired its id into `wrangler.dev.jsonc`
+- [x] 4.3 Deployed `makerperks-adapter-dev` (`npm run deploy:dev`) → `makerperks-dev.mcpaql.com`
+  (+ `*.workers.dev`); MCP_OBJECT DO + dev KV bound; sqlite migration applied. Verified
+  server-side: discovery 200, unauth → 401 + `WWW-Authenticate`, `/authorize` → 302 to
+  GitHub with the right client_id/callback/scope and PKCE-preserving state
+- [x] 4.4 Connected a real MCP client (**Claude Desktop**) through the GitHub login —
+  clean OAuth flow, session DO instantiated, `mcp_aql_read` READ ops return live results
+- [x] 4.5 **Live endpoint unchanged** — `https://makerperks.mcpaql.com` still serves the
+  Stage 0 anonymous build (HTTP 200, discovery 200); its worker's last deploy is 2026-06-26
+  (only `makerperks-adapter-dev` was deployed today) — separate Worker/KV/route confirmed
 
 ## 5. Validate
 
-- [ ] 5.1 `openspec validate add-stateful-hosting --strict` passes
-- [ ] 5.2 `npm run typecheck`, `npm run build`, `npm run lint`, `npm test` green
+- [x] 5.1 `openspec validate add-stateful-hosting --strict` passes
+- [x] 5.2 `npm run typecheck`, `npm run build`, `npm run lint`, `npm test` green
