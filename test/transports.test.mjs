@@ -55,17 +55,17 @@ async function viaHttp(port) {
   return { tools, ops };
 }
 
-test("stdio: read + execute tools, introspect lists 9 ops", async () => {
+test("stdio: read + execute tools, introspect lists 10 ops", async () => {
   const { tools, ops } = await viaStdio();
   assert.deepEqual(tools, ["mcp_aql_read", "mcp_aql_execute"]);
-  assert.equal(ops.length, 9);
-  assert.ok(ops.includes("get_application_flow") && ops.includes("submit_step"));
+  assert.equal(ops.length, 10);
+  assert.ok(ops.includes("submit_step") && ops.includes("record_execution_step"));
 });
 
-test("streamable http: read + execute tools, introspect lists 9 ops", async () => {
+test("streamable http: read + execute tools, introspect lists 10 ops", async () => {
   const { tools, ops } = await viaHttp(38974);
   assert.deepEqual(tools, ["mcp_aql_read", "mcp_aql_execute"]);
-  assert.equal(ops.length, 9);
+  assert.equal(ops.length, 10);
 });
 
 test("transport parity: same operations over stdio and streamable http", async () => {

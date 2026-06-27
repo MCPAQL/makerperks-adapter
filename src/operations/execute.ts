@@ -320,4 +320,65 @@ export function registerExecuteOperations(
       });
     },
   });
+
+  // Opt-in Execution Safety Loop (MCP-AQL spec §8.6): the agent reports an intended next
+  // action and gets a go/pause/stop directive. Evaluate-only — it manages NO state, so any
+  // agent (Dollhouse's bimodal pipeline or anyone's) can drive it. The thresholds here are
+  // fixed; the configurable autonomy switch is #18.
+  router.register({
+    name: "record_execution_step",
+    semanticCategory: "EXECUTE",
+    description:
+      "Report an intended next action and receive an AutonomyDirective (go / pause / stop) " +
+      "by danger level. Opt-in and stateless — the agent-agnostic safety substrate.",
+    params: {
+      hint: {
+        type: "string",
+        required: false,
+        description: "A short description of the intended next action.",
+      },
+      danger_level: {
+        type: "number",
+        required: false,
+        description: "The action's assessed danger (0–4).",
+      },
+      slug: {
+        type: "string",
+        required: false,
+        description: "Optionally derive danger from a perk's application flow.",
+      },
+    },
+    returns:
+      "An object with a `directive` { decision: go|pause|stop, danger_level, reason }.",
+    handler: async (params) => {
+      const hint = (params.hint as string | undefined) ?? null;
+      let danger = Math.max(
+        0,
+        Math.min(4, Math.floor((params.danger_level as number | undefined) ?? 0)),
+      );
+      const slug = params.slug as string | undefined;
+      if (slug) {
+        await data.ensureLoaded();
+        const program = data.programs().find((p) => p.slug === slug);
+        if (program) {
+          danger = Math.max(danger, getApplicationFlow(program).danger_level);
+        }
+      }
+
+      let decision: "go" | "pause" | "stop";
+      let reason: string;
+      if (danger < GATE_THRESHOLD) {
+        decision = "go";
+        reason = "below the gate threshold";
+      } else if (danger >= 3) {
+        decision = "stop";
+        reason =
+          "highest-risk action (payment / real identity) — requires an out-of-band challenge-response";
+      } else {
+        decision = "pause";
+        reason = "at or above the gate threshold — confirm before proceeding";
+      }
+      return ok({ directive: { decision, danger_level: danger, reason, hint } });
+    },
+  });
 }

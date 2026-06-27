@@ -273,6 +273,45 @@ test("a low-danger provider does not halt", async () => {
   assert.notEqual(sub.data.status, "halted");
 });
 
+// --- §4: opt-in Execution Safety Loop ---
+
+test("record_execution_step: low danger → go, mid → pause, high → stop", async () => {
+  const { router } = await build();
+  const dir = async (danger_level) =>
+    (
+      await router.dispatch({
+        operation: "record_execution_step",
+        params: { danger_level, hint: "doing a thing" },
+      })
+    ).data.directive;
+
+  assert.equal((await dir(0)).decision, "go");
+  assert.equal((await dir(2)).decision, "pause");
+  const stop = await dir(4);
+  assert.equal(stop.decision, "stop");
+  assert.match(stop.reason, /out-of-band/);
+});
+
+test("record_execution_step: danger can be derived from a perk slug", async () => {
+  const { router } = await build();
+  const r = await router.dispatch({
+    operation: "record_execution_step",
+    params: { slug: "anthropic/anthropic-startup-program" }, // curated danger 2
+  });
+  assert.equal(r.data.directive.decision, "pause");
+  assert.equal(r.data.directive.danger_level, 2);
+});
+
+test("record_execution_step is stateless (creates no execution)", async () => {
+  const { router, store } = await build();
+  await router.dispatch({
+    operation: "record_execution_step",
+    params: { danger_level: 3 },
+  });
+  assert.deepEqual(store.get().executions, {});
+  assert.deepEqual(store.get().confirmationTokens, {});
+});
+
 test("http: mcp_aql_execute is exposed and dispatches when a store is wired", async () => {
   const { router } = await withStore();
   const handle = await startHttp(router, { port: 38981 });

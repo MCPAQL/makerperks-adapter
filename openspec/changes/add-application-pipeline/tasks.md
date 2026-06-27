@@ -56,9 +56,12 @@
 
 ## 4. Opt-in Execution Safety Loop
 
-- [ ] 4.1 `record_execution_step(nextActionHint)` → `AutonomyDirective`
-  (`{ decision: go|pause|stop, reason }`) by danger level; opt-in, no agent state
-- [ ] 4.2 Tests: low danger → go; gated danger → pause/stop with a reason; introspectable
+- [x] 4.1 `record_execution_step({ hint?, danger_level?, slug? })` → `AutonomyDirective`
+  (`{ decision: go|pause|stop, danger_level, reason, hint }`): danger 0 → go, 1–2 → pause,
+  3–4 → stop (out-of-band challenge-response). Optionally derives danger from a perk's flow.
+  Opt-in, stateless (touches no `SessionState`) — the agent-agnostic substrate
+- [x] 4.2 Tests: go/pause/stop by level, slug-derived danger, statelessness (no execution
+  created); introspectable (the 10-op surface). 66 green
 
 ## 5. Validate + archive
 
