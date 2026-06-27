@@ -39,11 +39,13 @@
 
 ## 3. Discoverable READ surface
 
-- [ ] 3.1 Register `get_application_flow(slug)` → merged flow (404 on unknown slug) and
-  `list_application_flows(automatability?, limit?)` → summaries, on the Router
-- [ ] 3.2 Confirm `introspect` lists the two new ops with params/types; existing READ ops
-  (`list_programs`/`get_program`/`search_programs`) unchanged
-- [ ] 3.3 Tests: get/list over the fixture; automatability filter; transport parity holds
+- [x] 3.1 `src/operations/flows.ts`: `get_application_flow(slug)` → merged flow
+  (`NOT_FOUND_RESOURCE` on unknown slug) and `list_application_flows(automatability?, limit?)`
+  → summaries; registered in `buildApp` (`registerFlowOperations`)
+- [x] 3.2 `introspect` now lists 6 ops incl. the two new ones with params/types/enums;
+  existing READ ops untouched; the single `mcp_aql_read` tool surface is unchanged
+- [x] 3.3 Tests: curated vs derived get; unknown-slug 404; automatability filter; invalid-enum
+  rejection; updated introspect-count + transport-parity (6 ops over stdio and http). 45 green
 
 ## 4. Enrichment tooling (idempotent issue generator)
 

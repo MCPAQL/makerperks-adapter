@@ -9,15 +9,52 @@ before(async () => {
 });
 const d = (operation, params) => router.dispatch({ operation, params });
 
-test("introspect lists the four READ ops", async () => {
+test("introspect lists the READ ops (incl. the flow ops)", async () => {
   const r = await d("introspect");
   assert.equal(r.success, true);
   assert.deepEqual(r.data.operations.map((o) => o.name).sort(), [
+    "get_application_flow",
     "get_program",
     "introspect",
+    "list_application_flows",
     "list_programs",
     "search_programs",
   ]);
+});
+
+test("get_application_flow: curated seed returns a curated flow", async () => {
+  const r = await d("get_application_flow", {
+    slug: "anthropic/anthropic-startup-program",
+  });
+  assert.equal(r.success, true);
+  assert.equal(r.data.flow.confidence, "curated");
+  assert.equal(r.data.flow.automatability, "manual_review");
+  assert.ok(r.data.flow.gaps.length > 0);
+});
+
+test("get_application_flow: unseeded program returns a derived flow", async () => {
+  const r = await d("get_application_flow", { slug: "neon/neon-free-tier" });
+  assert.equal(r.data.flow.confidence, "derived");
+  assert.equal(r.data.flow.automatability, "api"); // free_tier
+});
+
+test("get_application_flow: unknown slug is NOT_FOUND", async () => {
+  const r = await d("get_application_flow", { slug: "x/y" });
+  assert.equal(r.error.code, "NOT_FOUND_RESOURCE");
+});
+
+test("list_application_flows: filters by automatability", async () => {
+  const all = await d("list_application_flows");
+  assert.equal(all.data.count, 2); // both fixture programs
+  const api = await d("list_application_flows", { automatability: "api" });
+  assert.equal(api.data.count, 1);
+  assert.equal(api.data.flows[0].slug, "neon/neon-free-tier");
+});
+
+test("list_application_flows: rejects an invalid automatability enum", async () => {
+  const r = await d("list_application_flows", { automatability: "magic" });
+  assert.equal(r.success, false);
+  assert.equal(r.error.code, "VALIDATION_INVALID_TYPE");
 });
 
 test("list_programs filters by tag", async () => {

@@ -4,6 +4,7 @@
 import { Router } from "./core/router.js";
 import { registerIntrospect } from "./core/introspect.js";
 import { registerReadOperations } from "./operations/read.js";
+import { registerFlowOperations } from "./operations/flows.js";
 import { DataSource, type DataSourceOptions } from "./data/source.js";
 
 export type AppOptions = DataSourceOptions;
@@ -16,6 +17,7 @@ export async function buildApp(
 
   const router = new Router();
   registerReadOperations(router, data);
+  registerFlowOperations(router, data);
   registerIntrospect(router);
 
   return { router, data };
