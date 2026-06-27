@@ -31,13 +31,16 @@
 
 ## 2. Per-session substrate via McpAgent + Durable Object (`stateful-session`)
 
-- [ ] 2.1 Add `src/worker-stateful.ts`: an `McpAgent` subclass that builds the `Router` via
+- [x] 2.1 Add `src/worker-stateful.ts`: an `McpAgent` subclass that builds the `Router` via
   `buildApp` (URL source + TTL, cached per isolate) and mounts `createMcpServer(router)` —
-  same single `mcp_aql_read` READ surface, now session-backed
-- [ ] 2.2 Define a typed `SessionState` container on the agent (home for confirmation
-  tokens + execution context); **unused by READ** in this change — substrate only
-- [ ] 2.3 Confirm per-session isolation: two concurrent sessions get distinct DO instances;
-  READ results are identical to the live endpoint (parity preserved)
+  same single `mcp_aql_read` READ surface, now session-backed (entry added in §1)
+- [x] 2.2 Define a typed `SessionState` container — pure `src/session/state.ts`
+  (`confirmationTokens` + `executions`, both empty) wired as the agent's State generic +
+  `initialState`; **unused by READ** in this change — substrate only
+- [x] 2.3 Per-session isolation: `freshSessionState()` returns an independent container per
+  session (unit-tested — mutating one never leaks into another); READ parity holds by
+  construction (same `createMcpServer(router)` as the existing transport-parity test). Live
+  DO-instance isolation + endpoint parity are verified in §4 (needs the Workers runtime)
 
 ## 3. Real per-user OAuth via GitHub IdP (`endpoint-auth`)
 

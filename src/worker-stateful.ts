@@ -14,6 +14,7 @@ import OAuthProvider, { getOAuthApi } from "@cloudflare/workers-oauth-provider";
 import { McpAgent } from "agents/mcp";
 import { buildApp } from "./app.js";
 import { createMcpServer } from "./mcp.js";
+import { freshSessionState, type SessionState } from "./session/state.js";
 import type { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import type { Router } from "./core/router.js";
 
@@ -42,8 +43,16 @@ function getRouter(env: Env): Promise<Router> {
  * surface and the token-efficient single-tool design are preserved while sessions become
  * stateful. McpAgent runs `init()` and then reads `this.server`, connecting its own
  * Streamable HTTP transport.
+ *
+ * Each session carries its own `SessionState` (`initialState`) — the typed home for
+ * confirmation tokens + EXECUTE context. READ does NOT touch it; the application pipeline
+ * (#17) populates it. Per-session isolation is guaranteed by one DO per session and
+ * verified live in §4.
  */
-export class MakerPerksMcpAgent extends McpAgent<Env> {
+export class MakerPerksMcpAgent extends McpAgent<Env, SessionState> {
+  // A fresh, per-session state container — never a shared reference across sessions.
+  initialState: SessionState = freshSessionState();
+
   // Built in init() from the cached router; read by McpAgent after init() resolves.
   server!: Server;
 
