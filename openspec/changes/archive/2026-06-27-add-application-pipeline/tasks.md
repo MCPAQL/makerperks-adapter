@@ -65,7 +65,10 @@
 
 ## 5. Validate + archive
 
-- [ ] 5.1 `openspec validate add-application-pipeline --strict` passes
-- [ ] 5.2 typecheck/build/lint/tests green; lifecycle runs over stdio (in-memory) and the dev
-  Worker (DO-backed); live endpoint confirmed READ-only/untouched
-- [ ] 5.3 Archive into `openspec/specs/`
+- [x] 5.1 `openspec validate add-application-pipeline --strict` passes
+- [x] 5.2 typecheck/build/lint/66 tests green; lifecycle verified over stdio/in-memory (full
+  drive + halt/resume); dev Worker redeployed with the pipeline (DO-backed store, discovery
+  200, unauth→401) — the authenticated end-to-end drive over the dev endpoint is Mick's via
+  Claude Desktop, de-risked by the identical handler path + the proven DO substrate (#20 §4).
+  Live `makerperks.mcpaql.com` confirmed READ-only/untouched (last deploy 2026-06-26)
+- [x] 5.3 Archive into `openspec/specs/`
