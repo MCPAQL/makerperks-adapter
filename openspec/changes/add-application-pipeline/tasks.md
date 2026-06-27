@@ -28,14 +28,18 @@
 
 ## 2. Simulated application lifecycle
 
-- [ ] 2.1 `src/operations/execute.ts`: `start_application(slug)` → creates an execution in
-  `SessionState.executions` (uuid, stage `eligibility`, status `pending`)
-- [ ] 2.2 `submit_step(execution_id, inputs?)` advances `eligibility → assemble → submission
-  → verification → redeem`; **submission is simulated** (`simulated: true`, records the
-  would-be target + inputs; `web_only`/`manual_review` → a prepared handoff). No `fetch`
-- [ ] 2.3 `get_status(execution_id)` → stage, status, next step, flow `gaps`; unknown id →
-  `NOT_FOUND_RESOURCE`
-- [ ] 2.4 Tests: full happy-path lifecycle to `completed`; per-session isolation of executions
+- [x] 2.1 `start_application(slug)` → execution in `SessionState.executions` (uuid, stage
+  `eligibility`, status `pending`) — from §1
+- [x] 2.2 `submit_step(execution_id, inputs?)` advances `eligibility → assemble → submission
+  → verification → redeem` one stage/call; **submission simulated** (`simulated: true`,
+  records the would-be target + inputs; `web_only`/`manual_review` → a prepared `#21`
+  handoff); merges inputs + reports `missing_inputs`. No `fetch`. Added an `object` ParamType
+  to the Router for typed `inputs`
+- [x] 2.3 `get_status(execution_id)` → execution + flow summary (automatability, confidence,
+  danger_level, `gaps`) + `next_step`; unknown id → `NOT_FOUND_RESOURCE`
+- [x] 2.4 Tests: full lifecycle to `completed`, simulated-submission vs prepared-handoff,
+  missing-inputs, flow context, already-completed, unknown id. Verified live (Deepgram drives
+  start→…→done). 56 green
 
 ## 3. Batch-with-halting + confirmation tokens
 

@@ -77,6 +77,94 @@ test("executions are isolated per session store", async () => {
   assert.equal(inB.error.code, "NOT_FOUND_RESOURCE");
 });
 
+// --- §2: the simulated lifecycle ---
+
+test("submit_step walks the full lifecycle to completed (simulated api submission)", async () => {
+  const { router } = await withStore();
+  const started = await router.dispatch({
+    operation: "start_application",
+    params: { slug: "neon/neon-free-tier" },
+  });
+  const id = started.data.execution_id;
+  const step = (inputs) =>
+    router.dispatch({
+      operation: "submit_step",
+      params: inputs ? { execution_id: id, inputs } : { execution_id: id },
+    });
+
+  assert.equal((await step()).data.stage, "assemble"); // eligibility → assemble
+  const s2 = await step({ email: "m@x.com", full_name: "Mick" }); // assemble → submission
+  assert.equal(s2.data.stage, "submission");
+  assert.deepEqual(s2.data.missing_inputs, []);
+  const s3 = await step(); // submission → verification
+  assert.equal(s3.data.stage, "verification");
+  assert.equal(s3.data.simulated, true);
+  assert.match(s3.data.did, /SIMULATED submission/);
+  assert.equal((await step()).data.stage, "redeem"); // verification → redeem
+  const done = await step(); // redeem → done
+  assert.equal(done.data.stage, "done");
+  assert.equal(done.data.status, "completed");
+
+  assert.equal((await step()).data.note, "already completed");
+});
+
+test("assemble reports missing required inputs", async () => {
+  const { router } = await withStore();
+  const started = await router.dispatch({
+    operation: "start_application",
+    params: { slug: "neon/neon-free-tier" },
+  });
+  const id = started.data.execution_id;
+  await router.dispatch({ operation: "submit_step", params: { execution_id: id } });
+  const assemble = await router.dispatch({
+    operation: "submit_step",
+    params: { execution_id: id },
+  });
+  assert.ok(assemble.data.missing_inputs.includes("email"));
+  assert.ok(assemble.data.missing_inputs.includes("full_name"));
+});
+
+test("a web-only/manual provider yields a prepared handoff, not a submission", async () => {
+  const { router } = await withStore();
+  const started = await router.dispatch({
+    operation: "start_application",
+    params: { slug: "anthropic/anthropic-startup-program" },
+  });
+  const id = started.data.execution_id;
+  await router.dispatch({ operation: "submit_step", params: { execution_id: id } });
+  await router.dispatch({ operation: "submit_step", params: { execution_id: id } });
+  const sub = await router.dispatch({
+    operation: "submit_step",
+    params: { execution_id: id },
+  });
+  assert.match(sub.data.did, /prepared handoff/);
+  assert.match(sub.data.did, /#21/);
+});
+
+test("get_status carries flow context", async () => {
+  const { router } = await withStore();
+  const started = await router.dispatch({
+    operation: "start_application",
+    params: { slug: "neon/neon-free-tier" },
+  });
+  const status = await router.dispatch({
+    operation: "get_status",
+    params: { execution_id: started.data.execution_id },
+  });
+  assert.equal(status.data.flow.automatability, "api");
+  assert.ok(Array.isArray(status.data.flow.gaps));
+  assert.match(status.data.next_step, /eligibility/);
+});
+
+test("submit_step on an unknown execution is NOT_FOUND", async () => {
+  const { router } = await withStore();
+  const r = await router.dispatch({
+    operation: "submit_step",
+    params: { execution_id: "nope" },
+  });
+  assert.equal(r.error.code, "NOT_FOUND_RESOURCE");
+});
+
 test("http: mcp_aql_execute is exposed and dispatches when a store is wired", async () => {
   const { router } = await withStore();
   const handle = await startHttp(router, { port: 38981 });

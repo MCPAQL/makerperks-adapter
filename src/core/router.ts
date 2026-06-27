@@ -6,7 +6,7 @@ import { err, type AqlRequest, type Result } from "./wire.js";
 
 export type SemanticCategory = "READ" | "EXECUTE"; // CREATE/UPDATE/DELETE later (#34–#36).
 
-export type ParamType = "string" | "number" | "boolean" | "string[]";
+export type ParamType = "string" | "number" | "boolean" | "string[]" | "object";
 
 export interface ParamSpec {
   type: ParamType;
@@ -36,6 +36,8 @@ function matchesType(value: unknown, type: ParamType): boolean {
       return typeof value === "boolean";
     case "string[]":
       return Array.isArray(value) && value.every((v) => typeof v === "string");
+    case "object":
+      return typeof value === "object" && value !== null && !Array.isArray(value);
   }
 }
 
