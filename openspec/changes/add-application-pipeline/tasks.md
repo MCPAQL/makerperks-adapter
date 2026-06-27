@@ -43,12 +43,16 @@
 
 ## 3. Batch-with-halting + confirmation tokens
 
-- [ ] 3.1 Gate steps with `danger_level >= 1` (fixed default): halt with `CONFIRMATION_REQUIRED`
-  + a token in `SessionState.confirmationTokens` (single-use, TTL via `Date.now()`,
-  param-bound to execution_id + stage + inputs hash)
-- [ ] 3.2 Resume: `submit_step` with a valid token verifies (exists/unexpired/unused/params
-  match), consumes it, proceeds; wrong/expired/replayed → rejected
-- [ ] 3.3 Tests: halt → resume → complete; replay rejected; expired rejected; tampered inputs rejected
+- [x] 3.1 The submission step gates when `flow.danger_level >= 1` (fixed default): halts with
+  a `status: halted` + `confirmation_required` result carrying a single-use token in
+  `SessionState.confirmationTokens` (TTL 5 min via `Date.now()`, param-bound by a stable
+  hash of the merged inputs); the execution does not advance
+- [x] 3.2 Resume: `submit_step` with the token verifies (exists / unexpired / unused /
+  execution+stage match / inputs match), consumes it in the advancing write, and proceeds.
+  Invalid tokens → a `CONFIRMATION_REJECTED` error (new wire code)
+- [x] 3.3 Tests: halt-without-advancing, resume-once, used/expired/unknown/tampered-inputs
+  all rejected, low-danger does not halt; the §2 handoff test now confirms past the gate.
+  Verified live (GCP danger 2 halts → resumes). 63 green
 
 ## 4. Opt-in Execution Safety Loop
 

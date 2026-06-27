@@ -19,6 +19,7 @@ export type ErrorCode =
   | "VALIDATION_UNKNOWN_PARAM"
   | "NOT_FOUND_OPERATION"
   | "NOT_FOUND_RESOURCE"
+  | "CONFIRMATION_REJECTED" // a presented confirmation token was invalid/expired/used (#17)
   | "INTERNAL_ERROR";
 
 export interface AqlRequest {

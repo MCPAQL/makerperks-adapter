@@ -10,7 +10,12 @@ import { ok, err } from "../core/wire.js";
 import type { Router } from "../core/router.js";
 import type { DataSource } from "../data/source.js";
 import { getApplicationFlow } from "../data/flows.js";
-import type { Execution, ExecutionStage, SessionStore } from "../session/state.js";
+import type {
+  ConfirmationToken,
+  Execution,
+  ExecutionStage,
+  SessionStore,
+} from "../session/state.js";
 
 // The simulated lifecycle: each submit_step processes the current stage and advances one.
 const NEXT_STAGE: Record<Exclude<ExecutionStage, "done">, ExecutionStage> = {
@@ -20,6 +25,22 @@ const NEXT_STAGE: Record<Exclude<ExecutionStage, "done">, ExecutionStage> = {
   verification: "redeem",
   redeem: "done",
 };
+
+// Steps at or above this danger level halt for confirmation. Fixed here; the *configurable*
+// review-each / auto-low-risk / full-auto threshold is the autonomy switch (#18).
+const GATE_THRESHOLD = 1;
+const CONFIRMATION_TTL_MS = 5 * 60 * 1000;
+
+/** A stable, key-sorted serialization used to bind a confirmation token to its inputs. */
+function stableStringify(value: unknown): string {
+  if (value === null || typeof value !== "object") return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map(stableStringify).join(",")}]`;
+  const obj = value as Record<string, unknown>;
+  return `{${Object.keys(obj)
+    .sort()
+    .map((k) => `${JSON.stringify(k)}:${stableStringify(obj[k])}`)
+    .join(",")}}`;
+}
 
 export function registerExecuteOperations(
   router: Router,
@@ -95,6 +116,12 @@ export function registerExecuteOperations(
         description:
           "Key/value inputs to assemble into the application (merged per call).",
       },
+      confirmation_token: {
+        type: "string",
+        required: false,
+        description:
+          "The token returned by a CONFIRMATION_REQUIRED halt, to proceed past a gated step.",
+      },
     },
     returns:
       "An object with the new `stage`, `status`, what this step `did` (`simulated: true`), " +
@@ -127,6 +154,63 @@ export function registerExecuteOperations(
       }
       const flow = getApplicationFlow(program);
       const mergedInputs = { ...execution.inputs, ...inputs };
+
+      // Batch-with-halting: a gated step pauses for a single-use, param-bound confirmation
+      // token. `consumed` carries the token to mark used in the same write that advances.
+      let consumed: ConfirmationToken | undefined;
+      if (execution.stage === "submission" && flow.danger_level >= GATE_THRESHOLD) {
+        const now = Date.now();
+        const paramsHash = stableStringify(mergedInputs);
+        const provided = params.confirmation_token as string | undefined;
+
+        if (!provided) {
+          const ct: ConfirmationToken = {
+            token: crypto.randomUUID(),
+            executionId,
+            stage: "submission",
+            paramsHash,
+            issuedAt: now,
+            expiresAt: now + CONFIRMATION_TTL_MS,
+            used: false,
+          };
+          await store.set({
+            ...state,
+            executions: {
+              ...state.executions,
+              [executionId]: { ...execution, inputs: mergedInputs, status: "halted" },
+            },
+            confirmationTokens: { ...state.confirmationTokens, [ct.token]: ct },
+          });
+          return ok({
+            execution_id: executionId,
+            stage: "submission",
+            status: "halted",
+            confirmation_required: true,
+            confirmation_token: ct.token,
+            danger_level: flow.danger_level,
+            reason: `submission for ${execution.slug} is danger ${flow.danger_level} — confirm to proceed`,
+            expires_at: ct.expiresAt,
+            next_step: "resume submit_step with the confirmation_token to proceed",
+          });
+        }
+
+        const ct = state.confirmationTokens[provided];
+        const reject = (message: string) =>
+          err("CONFIRMATION_REJECTED", message, {
+            execution_id: executionId,
+            stage: "submission",
+          });
+        if (!ct) return reject("unknown confirmation token");
+        if (ct.used) return reject("confirmation token already used");
+        if (ct.expiresAt < now) return reject("confirmation token expired");
+        if (ct.executionId !== executionId || ct.stage !== "submission") {
+          return reject("confirmation token does not match this step");
+        }
+        if (ct.paramsHash !== paramsHash) {
+          return reject("inputs changed since the token was issued");
+        }
+        consumed = ct;
+      }
 
       let missing: string[] = [];
       let did: string;
@@ -170,6 +254,12 @@ export function registerExecuteOperations(
       await store.set({
         ...state,
         executions: { ...state.executions, [executionId]: updated },
+        confirmationTokens: consumed
+          ? {
+              ...state.confirmationTokens,
+              [consumed.token]: { ...consumed, used: true },
+            }
+          : state.confirmationTokens,
       });
 
       return ok({

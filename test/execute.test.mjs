@@ -124,7 +124,7 @@ test("assemble reports missing required inputs", async () => {
   assert.ok(assemble.data.missing_inputs.includes("full_name"));
 });
 
-test("a web-only/manual provider yields a prepared handoff, not a submission", async () => {
+test("a web-only/manual provider yields a prepared handoff (after confirmation)", async () => {
   const { router } = await withStore();
   const started = await router.dispatch({
     operation: "start_application",
@@ -133,9 +133,15 @@ test("a web-only/manual provider yields a prepared handoff, not a submission", a
   const id = started.data.execution_id;
   await router.dispatch({ operation: "submit_step", params: { execution_id: id } });
   await router.dispatch({ operation: "submit_step", params: { execution_id: id } });
-  const sub = await router.dispatch({
+  // anthropic is danger 2 → submission halts for confirmation first
+  const h = await router.dispatch({
     operation: "submit_step",
     params: { execution_id: id },
+  });
+  assert.equal(h.data.confirmation_required, true);
+  const sub = await router.dispatch({
+    operation: "submit_step",
+    params: { execution_id: id, confirmation_token: h.data.confirmation_token },
   });
   assert.match(sub.data.did, /prepared handoff/);
   assert.match(sub.data.did, /#21/);
@@ -163,6 +169,108 @@ test("submit_step on an unknown execution is NOT_FOUND", async () => {
     params: { execution_id: "nope" },
   });
   assert.equal(r.error.code, "NOT_FOUND_RESOURCE");
+});
+
+// --- §3: batch-with-halting + confirmation tokens ---
+
+const build = async () => {
+  const store = inMemorySessionStore();
+  const { router } = await buildApp({ source: FIXTURE, sessionStore: store });
+  return { router, store };
+};
+// Drive a danger-2 provider (anthropic curated) to the gated submission stage.
+const toSubmission = async (router) => {
+  const s = await router.dispatch({
+    operation: "start_application",
+    params: { slug: "anthropic/anthropic-startup-program" },
+  });
+  const id = s.data.execution_id;
+  await router.dispatch({ operation: "submit_step", params: { execution_id: id } });
+  await router.dispatch({ operation: "submit_step", params: { execution_id: id } });
+  return id;
+};
+const halt = (router, id, extra) =>
+  router.dispatch({
+    operation: "submit_step",
+    params: { execution_id: id, ...extra },
+  });
+
+test("a gated submission halts with a confirmation token, without advancing", async () => {
+  const { router } = await build();
+  const id = await toSubmission(router);
+  const h = await halt(router, id);
+  assert.equal(h.data.status, "halted");
+  assert.equal(h.data.confirmation_required, true);
+  assert.ok(h.data.confirmation_token);
+  assert.equal(h.data.stage, "submission");
+});
+
+test("resuming with the token proceeds past the gate exactly once", async () => {
+  const { router } = await build();
+  const id = await toSubmission(router);
+  const h = await halt(router, id);
+  const resume = await halt(router, id, {
+    confirmation_token: h.data.confirmation_token,
+  });
+  assert.equal(resume.data.stage, "verification");
+  assert.match(resume.data.did, /prepared handoff/);
+});
+
+test("a used token cannot be replayed", async () => {
+  const { router, store } = await build();
+  const id = await toSubmission(router);
+  const h = await halt(router, id);
+  store.get().confirmationTokens[h.data.confirmation_token].used = true;
+  const r = await halt(router, id, { confirmation_token: h.data.confirmation_token });
+  assert.equal(r.error.code, "CONFIRMATION_REJECTED");
+  assert.match(r.error.message, /already used/);
+});
+
+test("an expired token is rejected", async () => {
+  const { router, store } = await build();
+  const id = await toSubmission(router);
+  const h = await halt(router, id);
+  store.get().confirmationTokens[h.data.confirmation_token].expiresAt = 1;
+  const r = await halt(router, id, { confirmation_token: h.data.confirmation_token });
+  assert.equal(r.error.code, "CONFIRMATION_REJECTED");
+  assert.match(r.error.message, /expired/);
+});
+
+test("a token bound to different inputs is rejected", async () => {
+  const { router } = await build();
+  const id = await toSubmission(router);
+  const h = await halt(router, id);
+  const r = await halt(router, id, {
+    confirmation_token: h.data.confirmation_token,
+    inputs: { company_email: "x@y.com" },
+  });
+  assert.equal(r.error.code, "CONFIRMATION_REJECTED");
+  assert.match(r.error.message, /inputs changed/);
+});
+
+test("an unknown token is rejected", async () => {
+  const { router } = await build();
+  const id = await toSubmission(router);
+  await halt(router, id); // issue a real token; we present a bogus one
+  const r = await halt(router, id, { confirmation_token: "bogus" });
+  assert.equal(r.error.code, "CONFIRMATION_REJECTED");
+});
+
+test("a low-danger provider does not halt", async () => {
+  const { router } = await build();
+  const s = await router.dispatch({
+    operation: "start_application",
+    params: { slug: "neon/neon-free-tier" }, // free_tier → danger 0
+  });
+  const id = s.data.execution_id;
+  await router.dispatch({ operation: "submit_step", params: { execution_id: id } });
+  await router.dispatch({ operation: "submit_step", params: { execution_id: id } });
+  const sub = await router.dispatch({
+    operation: "submit_step",
+    params: { execution_id: id },
+  });
+  assert.equal(sub.data.stage, "verification");
+  assert.notEqual(sub.data.status, "halted");
 });
 
 test("http: mcp_aql_execute is exposed and dispatches when a store is wired", async () => {
