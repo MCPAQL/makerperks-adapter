@@ -59,7 +59,7 @@
 
 ## 5. Validate + archive
 
-- [ ] 5.1 `openspec validate add-provider-flows --strict` passes
-- [ ] 5.2 `npm run typecheck`, `npm run build`, `npm run lint`, `npm test` green; ops return
-  real merged flows over the live `perks.json`
-- [ ] 5.3 Archive into `openspec/specs/`
+- [x] 5.1 `openspec validate add-provider-flows --strict` passes
+- [x] 5.2 typecheck/build/lint/45 tests green; ops return real merged flows over the live
+  `perks.json` (deepgram → curated/api; 11 perks tag `api` across the directory)
+- [x] 5.3 Archive into `openspec/specs/`
