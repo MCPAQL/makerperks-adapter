@@ -2,19 +2,29 @@
 // makerperks-dev.mcpaql.com. The live makerperks.mcpaql.com (src/worker.ts) is
 // left untouched. See openspec/changes/add-stateful-hosting (issue #20).
 //
-// §1 (this commit, #24): the McpAgent + Durable Object entry so each MCP session is
-// backed by a DO, mounting the SAME single `mcp_aql_read` READ surface. Two things are
-// still interim and land in later sections of this change:
-//   - the typed per-session SessionState container (confirmation tokens + EXECUTE
-//     context) — §2 (#25); READ never uses it.
-//   - real per-user GitHub OAuth — §3 (#26) replaces the anonymous auto-approve below,
-//     which is CLIENT COMPATIBILITY, not access control (mirrors src/worker.ts).
+//   - §1 (#24): the McpAgent + Durable Object entry — a DO per MCP session mounting the
+//     SAME single `mcp_aql_read` READ surface.
+//   - §2 (#25): a typed per-session SessionState container (confirmation tokens + EXECUTE
+//     context); READ never uses it.
+//   - §3 (#26): real per-user OAuth — /authorize is delegated to GitHub (the upstream
+//     IdP); the authenticated identity is carried into the grant `props` (and so into the
+//     session DO as `this.props`). No password is stored.
 
-import OAuthProvider, { getOAuthApi } from "@cloudflare/workers-oauth-provider";
+import OAuthProvider, {
+  getOAuthApi,
+  type AuthRequest,
+} from "@cloudflare/workers-oauth-provider";
 import { McpAgent } from "agents/mcp";
 import { buildApp } from "./app.js";
 import { createMcpServer } from "./mcp.js";
 import { freshSessionState, type SessionState } from "./session/state.js";
+import {
+  decodeAuthState,
+  encodeAuthState,
+  fetchGitHubIdentity,
+  githubAuthorizeUrl,
+  type GitHubOAuthConfig,
+} from "./auth/github.js";
 import type { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import type { Router } from "./core/router.js";
 
@@ -22,6 +32,22 @@ interface Env {
   OAUTH_KV: KVNamespace;
   MCP_OBJECT: DurableObjectNamespace;
   PERKS_URL?: string;
+  // Set as Worker secrets on the dev Worker (`wrangler secret put ... -c wrangler.dev.jsonc`).
+  GITHUB_CLIENT_ID?: string;
+  GITHUB_CLIENT_SECRET?: string;
+}
+
+function githubConfig(env: Env): GitHubOAuthConfig {
+  if (!env.GITHUB_CLIENT_ID || !env.GITHUB_CLIENT_SECRET) {
+    throw new Error(
+      "GitHub OAuth is not configured — set GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET " +
+        "(via `wrangler secret put`) on the dev Worker.",
+    );
+  }
+  return {
+    clientId: env.GITHUB_CLIENT_ID,
+    clientSecret: env.GITHUB_CLIENT_SECRET,
+  };
 }
 
 // Cache the data/router per isolate; the Durable Object holds *session* state, not the
@@ -62,24 +88,66 @@ export class MakerPerksMcpAgent extends McpAgent<Env, SessionState> {
   }
 }
 
-// --- Interim anonymous auto-approve /authorize (compatibility, NOT gating) ---
-// Mirrors src/worker.ts. §3 (#26) replaces this with a real GitHub login that carries the
-// authenticated identity into the agent as `this.props`.
+// --- Real per-user OAuth: delegate /authorize to GitHub (the upstream IdP) ---
+// The provider stays our authorization server (DCR, /token, discovery metadata, and a
+// 401 + WWW-Authenticate on the protected API for unauthenticated clients). GitHub
+// authenticates the human; we round-trip the full AuthRequest through GitHub's `state`
+// param (no KV needed), then carry the identity into the grant `props` — which reach the
+// session DO as `this.props`. No password is ever stored.
 const authHandler = {
   async fetch(request: Request, env: Env, _ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
+    const callbackUri = `${url.origin}/callback`;
+
     if (url.pathname === "/authorize") {
+      const config = githubConfig(env);
       const oauth = getOAuthApi(oauthOptions, env);
       const authReq = await oauth.parseAuthRequest(request);
+      return Response.redirect(
+        githubAuthorizeUrl({
+          clientId: config.clientId,
+          redirectUri: callbackUri,
+          state: encodeAuthState(authReq),
+        }),
+        302,
+      );
+    }
+
+    if (url.pathname === "/callback") {
+      const config = githubConfig(env);
+      const code = url.searchParams.get("code");
+      const state = url.searchParams.get("state");
+      if (!code || !state) {
+        return new Response("missing code/state", { status: 400 });
+      }
+
+      let authReq: AuthRequest;
+      try {
+        authReq = decodeAuthState(state);
+      } catch {
+        return new Response("invalid state", { status: 400 });
+      }
+
+      const identity = await fetchGitHubIdentity(code, callbackUri, config);
+      if (!identity) {
+        return new Response("GitHub authentication failed", { status: 502 });
+      }
+
+      const oauth = getOAuthApi(oauthOptions, env);
       const { redirectTo } = await oauth.completeAuthorization({
         request: authReq,
-        userId: "public",
-        metadata: {},
+        userId: identity.userId,
+        metadata: { login: identity.login },
         scope: authReq.scope,
-        props: {},
+        props: {
+          userId: identity.userId,
+          login: identity.login,
+          name: identity.name,
+        },
       });
       return Response.redirect(redirectTo, 302);
     }
+
     return new Response("Not Found", { status: 404 });
   },
 };

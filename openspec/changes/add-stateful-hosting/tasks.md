@@ -44,13 +44,18 @@
 
 ## 3. Real per-user OAuth via GitHub IdP (`endpoint-auth`)
 
-- [ ] 3.1 Replace the auto-approve `/authorize` with a GitHub OAuth login: redirect to
-  GitHub, handle the callback, fetch the GitHub identity
-- [ ] 3.2 Complete authorization with the real identity — `userId` = GitHub user id, `props`
-  carry login/profile — so it reaches the agent as `this.props`; retain DCR, discovery
-  metadata, token endpoint; unauth MCP → 401 + `WWW-Authenticate`
-- [ ] 3.3 Read GitHub client id/secret from Worker secrets (never committed); document the
-  required secrets in the deploy notes
+- [x] 3.1 Replaced auto-approve `/authorize` with a GitHub OAuth login (`src/auth/github.ts`
+  + the `authHandler`): `/authorize` redirects to GitHub (full `AuthRequest` round-tripped
+  through the `state` param, no KV needed); `/callback` exchanges the code and fetches the
+  GitHub identity. Pure helpers are fetch-injectable and unit-tested
+- [x] 3.2 `completeAuthorization` with the real identity — `userId` = GitHub user id, `props`
+  carry `{ userId, login, name }` so they reach the agent as `this.props`. DCR, discovery
+  metadata, and `/token` are unchanged; unauth MCP → 401 + `WWW-Authenticate` is provided by
+  the OAuthProvider on the protected API route. `/callback` reaches the handler because
+  `apiRoute "/"` matches only the exact root (verified in the provider's `matchApiRoute`)
+- [x] 3.3 GitHub client id/secret read from Worker secrets (`GITHUB_CLIENT_ID`/
+  `GITHUB_CLIENT_SECRET`), never committed; missing config throws a clear error. Required
+  secrets + the `wrangler secret put` commands documented in `wrangler.dev.jsonc`
 
 ## 4. Isolated deploy + verify (manual auth — user)
 

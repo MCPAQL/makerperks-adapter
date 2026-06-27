@@ -20,4 +20,9 @@
     "bindings": [{ "name": "MCP_OBJECT", "class_name": "MakerPerksMcpAgent" }],
   },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["MakerPerksMcpAgent"] }],
+  // Real per-user OAuth (§3) delegates /authorize to GitHub. Two secrets are required —
+  // set them on this Worker (NOT committed):
+  //   wrangler secret put GITHUB_CLIENT_ID     -c wrangler.dev.jsonc
+  //   wrangler secret put GITHUB_CLIENT_SECRET -c wrangler.dev.jsonc
+  // Register the GitHub OAuth App with callback https://makerperks-dev.mcpaql.com/callback.
 }
