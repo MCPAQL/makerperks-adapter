@@ -49,11 +49,13 @@
 
 ## 4. Enrichment tooling (idempotent issue generator)
 
-- [ ] 4.1 `scripts/gen-provider-flow-issues.mjs`: read `perks.json`, take a **curated**
-  candidate list (not all 207), dedupe by slug against existing `provider-flow` issues,
-  create only new ones; dev tooling, not bundled in the Worker
-- [ ] 4.2 Dry-run mode (print what it *would* create); run it for the spike set to open the
-  per-provider research issues
+- [x] 4.1 `scripts/gen-provider-flow-issues.mjs`: reads `perks.json`, takes a **curated**
+  candidate list (args or `DEFAULT_CANDIDATES`, not all 207), skips already-curated slugs
+  (from the compiled overlay) **and** existing `provider-flow` issues, creates only new ones;
+  dev tooling, not bundled in the Worker
+- [x] 4.2 Dry-run is the default (`--create` to file); demonstrated across all branches
+  (curated→skip, not-in-perks→skip, new→would-create). **Actual filing is gated on a
+  candidate list from Mick** — the 3 spikes are already curated, so no issues filed yet
 
 ## 5. Validate + archive
 
