@@ -10,10 +10,11 @@
   "workers_dev": true,
   "observability": { "enabled": true },
   "routes": [{ "pattern": "makerperks-dev.mcpaql.com", "custom_domain": true }],
-  // A SEPARATE OAuth grant store — real-auth grants must not mingle with the live
-  // anonymous grants. The user creates this namespace and fills the id in §4 (#27).
+  // A SEPARATE OAuth grant store (namespace title `OAUTH_KV_DEV`) — real-auth grants must
+  // not mingle with the live worker's `OAUTH_KV` (609312bd…). Bound as `OAUTH_KV` (what the
+  // code reads).
   "kv_namespaces": [
-    { "binding": "OAUTH_KV", "id": "00000000000000000000000000000000" },
+    { "binding": "OAUTH_KV", "id": "ff6361cd98624fb3845c8f859e64bdde" },
   ],
   // One Durable Object per MCP session (McpAgent). Default binding name `MCP_OBJECT`.
   "durable_objects": {
