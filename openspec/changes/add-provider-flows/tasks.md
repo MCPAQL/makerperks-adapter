@@ -12,14 +12,17 @@
 
 ## 1. Flow schema + derivation (general layer)
 
-- [ ] 1.1 `src/data/flows.ts`: the `ApplicationFlow` type (automatability, required_inputs,
-  submission, redemption, danger_level, confidence, gaps, identity, provenance) + an
-  **eval-free** validator for the curated overlay (no ajv — Workers)
-- [ ] 1.2 `deriveFlow(program)`: baseline flow from a `perks.json` program — action_url from
-  url, generic required_inputs, automatability/redemption heuristics, conservative
-  danger_level, with honest `gaps` for everything unverified; `confidence: derived`
-- [ ] 1.3 Unit-test the derivation: shape, heuristic branches (free_tier/credits/discount),
-  and that every uncertain field is named in `gaps`
+- [x] 1.1 `src/data/flows.ts`: the `ApplicationFlow` type (automatability, required_inputs,
+  submission, redemption, danger_level, confidence, gaps, identity, provenance), the
+  `CuratedFlow` partial-overlay type, + `collectCuratedFlowErrors` — an **eval-free**
+  validator for the curated overlay (no ajv — Workers)
+- [x] 1.2 `deriveFlow(program)`: baseline flow from a `perks.json` program — action_url from
+  url, generic required_inputs, automatability/redemption heuristics, danger_level 0, with
+  honest `gaps` for everything unverified; `confidence: derived`
+- [x] 1.3 `test/flows.test.mjs`: derivation shape, heuristic branches
+  (free_tier→api/auto, gated credits→manual_review, small credits/discount→web_only/code,
+  student→credential input, unknown→unknown), gaps named; + validator (well-formed passes,
+  bad enums/shape caught, non-object rejected)
 
 ## 2. Curated overlay + merge
 
