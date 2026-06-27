@@ -32,5 +32,5 @@
 
 ## 3. Validate + archive
 
-- [ ] 3.1 `openspec validate add-autonomy-switch --strict`; typecheck/build/lint/tests green
-- [ ] 3.2 Archive into `openspec/specs/`
+- [x] 3.1 `openspec validate add-autonomy-switch --strict`; typecheck/build/lint/71 tests green
+- [x] 3.2 Archive into `openspec/specs/`
