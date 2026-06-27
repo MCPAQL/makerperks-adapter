@@ -7,6 +7,7 @@
 // See openspec/changes/add-provider-flows (capability `application-flows`).
 
 import type { PerkProgram } from "./source.js";
+import { curatedFlows } from "./provider-flows.js";
 
 export type Automatability = "api" | "web_only" | "manual_review" | "unknown";
 export type Confidence = "derived" | "curated";
@@ -260,4 +261,50 @@ export function deriveFlow(p: PerkProgram): ApplicationFlow {
     gaps,
     source: "derived",
   };
+}
+
+/**
+ * Merge a curated overlay over a derived baseline, field by field. Identity is always taken
+ * from the baseline (it comes from perks.json), and `confidence` flips to `curated` whenever
+ * an overlay record exists. Returns the baseline unchanged when there is no overlay.
+ */
+export function mergeFlow(
+  derived: ApplicationFlow,
+  curated?: CuratedFlow,
+): ApplicationFlow {
+  if (!curated) return derived;
+  return {
+    slug: derived.slug,
+    provider: derived.provider,
+    title: derived.title,
+    confidence: "curated",
+    automatability: curated.automatability ?? derived.automatability,
+    required_inputs: curated.required_inputs ?? derived.required_inputs,
+    submission: curated.submission ?? derived.submission,
+    redemption: curated.redemption ?? derived.redemption,
+    danger_level: curated.danger_level ?? derived.danger_level,
+    gaps: curated.gaps ?? derived.gaps,
+    source: curated.source ?? derived.source,
+    verified: curated.verified ?? derived.verified,
+  };
+}
+
+// Validate the shipped curated overlay once, lazily — the eval-free validator earns its keep
+// against hand-authoring errors (and any future non-typed/fetched overlay).
+let curatedValidated = false;
+function ensureCuratedValid(): void {
+  if (curatedValidated) return;
+  const errors = collectCuratedFlowErrors(curatedFlows);
+  if (errors.length > 0) {
+    throw new Error(
+      `curated provider-flows are invalid: ${errors.slice(0, 5).join("; ")}`,
+    );
+  }
+  curatedValidated = true;
+}
+
+/** The merged application flow for a program: curated overlay over the derived baseline. */
+export function getApplicationFlow(program: PerkProgram): ApplicationFlow {
+  ensureCuratedValid();
+  return mergeFlow(deriveFlow(program), curatedFlows[program.slug]);
 }

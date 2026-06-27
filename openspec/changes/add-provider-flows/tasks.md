@@ -26,12 +26,16 @@
 
 ## 2. Curated overlay + merge
 
-- [ ] 2.1 `provider-flows.json` (repo-owned, AGPL) + a loader using the eval-free validator;
-  `mergeFlow(derived, curated)` (curated-over-derived; `confidence: curated` when present)
-- [ ] 2.2 Seed curated records for the spikes, each researched against the provider's real
-  signup/docs: **anthropic** (`api`), **deepgram** (`api`), **gcp** (`web_only` handoff)
-- [ ] 2.3 Unit-test the merge (curated wins per field; confidence flips; unknown slug →
-  derived only)
+- [x] 2.1 `src/data/provider-flows.ts` (repo-owned, AGPL — `.ts` not `.json` so it bundles on
+  Workers without a copy step; still runtime-validated via `collectCuratedFlowErrors`);
+  `mergeFlow(derived, curated)` (curated-over-derived per field; `confidence: curated`;
+  identity from baseline) + `getApplicationFlow(program)` accessor
+- [x] 2.2 Seeded 3 researched spikes (verified 2026-06-27): **deepgram/deepgram-pricing-
+  startup-credits** (`api`, self-serve $200), **anthropic/anthropic-startup-program**
+  (`manual_review`, gated app, danger 2), **gcp/google-ai-startup-program** (`web_only`
+  handoff, danger 2). Eligibility kept in `gaps` — never auto-asserted
+- [x] 2.3 Unit-tested the merge (curated wins per field; confidence flips; identity preserved;
+  unseeded slug → derived), plus "shipped overlay validates" and a seeded `getApplicationFlow`
 
 ## 3. Discoverable READ surface
 

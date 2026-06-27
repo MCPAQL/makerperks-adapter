@@ -1,6 +1,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { deriveFlow, collectCuratedFlowErrors } from "../dist/data/flows.js";
+import {
+  deriveFlow,
+  collectCuratedFlowErrors,
+  mergeFlow,
+  getApplicationFlow,
+} from "../dist/data/flows.js";
+import { curatedFlows } from "../dist/data/provider-flows.js";
 
 const base = (over) => ({
   slug: "x/y",
@@ -114,4 +120,64 @@ test("validator: catches bad enum/shape values", () => {
 
 test("validator: rejects a non-object overlay", () => {
   assert.ok(collectCuratedFlowErrors([]).length > 0);
+});
+
+// --- §2: curated overlay + merge ---
+
+test("merge: no overlay → derived unchanged", () => {
+  const derived = deriveFlow(base({ value_type: "free_tier" }));
+  assert.equal(mergeFlow(derived, undefined), derived);
+});
+
+test("merge: curated wins per field, confidence flips, identity preserved", () => {
+  const derived = deriveFlow(
+    base({
+      slug: "p/q",
+      value_type: "credits",
+      max_value: 100000,
+      audience: ["startup"],
+    }),
+  );
+  const merged = mergeFlow(derived, {
+    automatability: "api",
+    redemption: { type: "auto" },
+    source: "https://p.example.com/",
+    verified: "2026-06-27",
+  });
+  assert.equal(merged.confidence, "curated");
+  assert.equal(merged.automatability, "api"); // overridden
+  assert.equal(merged.redemption.type, "auto"); // overridden
+  assert.equal(merged.source, "https://p.example.com/");
+  assert.equal(merged.verified, "2026-06-27");
+  assert.equal(merged.slug, "p/q"); // identity from baseline
+  assert.deepEqual(merged.required_inputs, derived.required_inputs); // not overridden → baseline
+});
+
+test("the shipped curated overlay is valid", () => {
+  assert.deepEqual(collectCuratedFlowErrors(curatedFlows), []);
+});
+
+test("getApplicationFlow: a seeded slug returns the curated (api) flow", () => {
+  const f = getApplicationFlow(
+    base({
+      slug: "deepgram/deepgram-pricing-startup-credits",
+      provider: "deepgram",
+      title: "Deepgram",
+      value_type: "credits",
+      max_value: 200,
+      audience: ["startup"],
+    }),
+  );
+  assert.equal(f.confidence, "curated");
+  assert.equal(f.automatability, "api");
+  assert.equal(f.redemption.type, "auto");
+  assert.equal(f.submission.action_url, "https://console.deepgram.com/signup");
+});
+
+test("getApplicationFlow: an unseeded slug returns the derived baseline", () => {
+  const f = getApplicationFlow(
+    base({ slug: "nobody/nothing", value_type: "discount" }),
+  );
+  assert.equal(f.confidence, "derived");
+  assert.equal(f.automatability, "web_only");
 });
