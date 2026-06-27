@@ -81,9 +81,10 @@ test("executions are isolated per session store", async () => {
 
 test("submit_step walks the full lifecycle to completed (simulated api submission)", async () => {
   const { router } = await withStore();
+  await router.dispatch({ operation: "set_autonomy", params: { mode: "full_auto" } });
   const started = await router.dispatch({
     operation: "start_application",
-    params: { slug: "neon/neon-free-tier" },
+    params: { slug: "neon/neon-free-tier" }, // danger 0 → full_auto flows straight through
   });
   const id = started.data.execution_id;
   const step = (inputs) =>
@@ -256,8 +257,9 @@ test("an unknown token is rejected", async () => {
   assert.equal(r.error.code, "CONFIRMATION_REJECTED");
 });
 
-test("a low-danger provider does not halt", async () => {
+test("under full_auto a low-danger provider does not halt", async () => {
   const { router } = await build();
+  await router.dispatch({ operation: "set_autonomy", params: { mode: "full_auto" } });
   const s = await router.dispatch({
     operation: "start_application",
     params: { slug: "neon/neon-free-tier" }, // free_tier → danger 0
@@ -271,6 +273,59 @@ test("a low-danger provider does not halt", async () => {
   });
   assert.equal(sub.data.stage, "verification");
   assert.notEqual(sub.data.status, "halted");
+});
+
+// --- #18 §2: the mode changes gating behavior ---
+
+const setMode = (router, mode) =>
+  router.dispatch({ operation: "set_autonomy", params: { mode } });
+const driveToSubmission = async (router, slug) => {
+  const s = await router.dispatch({ operation: "start_application", params: { slug } });
+  const id = s.data.execution_id;
+  await router.dispatch({ operation: "submit_step", params: { execution_id: id } });
+  await router.dispatch({ operation: "submit_step", params: { execution_id: id } });
+  return id;
+};
+const processSubmission = (router, id) =>
+  router.dispatch({ operation: "submit_step", params: { execution_id: id } });
+
+test("review_each halts even a danger-0 submission", async () => {
+  const { router } = await build();
+  await setMode(router, "review_each");
+  const id = await driveToSubmission(router, "neon/neon-free-tier"); // danger 0
+  const r = await processSubmission(router, id);
+  assert.equal(r.data.status, "halted");
+  assert.equal(r.data.decision, "pause");
+  assert.equal(r.data.challenge_required, false);
+});
+
+test("auto_low_risk lets danger-0 through but halts danger-2", async () => {
+  const { router } = await build();
+  await setMode(router, "auto_low_risk");
+  const low = await processSubmission(
+    router,
+    await driveToSubmission(router, "neon/neon-free-tier"), // danger 0 → go
+  );
+  assert.equal(low.data.stage, "verification");
+  assert.notEqual(low.data.status, "halted");
+
+  const hi = await processSubmission(
+    router,
+    await driveToSubmission(router, "anthropic/anthropic-startup-program"), // danger 2 → pause
+  );
+  assert.equal(hi.data.status, "halted");
+  assert.equal(hi.data.decision, "pause");
+});
+
+test("full_auto runs a danger-2 submission without halting", async () => {
+  const { router } = await build();
+  await setMode(router, "full_auto");
+  const r = await processSubmission(
+    router,
+    await driveToSubmission(router, "anthropic/anthropic-startup-program"), // danger 2 → go
+  );
+  assert.equal(r.data.stage, "verification");
+  assert.match(r.data.did, /prepared handoff/);
 });
 
 // --- #18 §1: autonomy set/get ---
@@ -299,8 +354,12 @@ test("set_autonomy / get_autonomy round-trip; default review_each; invalid rejec
 
 // --- §4: opt-in Execution Safety Loop ---
 
-test("record_execution_step: low danger → go, mid → pause, high → stop", async () => {
+test("record_execution_step reflects the session mode (go/pause/stop)", async () => {
   const { router } = await build();
+  await router.dispatch({
+    operation: "set_autonomy",
+    params: { mode: "auto_low_risk" },
+  });
   const dir = async (danger_level) =>
     (
       await router.dispatch({
@@ -309,8 +368,8 @@ test("record_execution_step: low danger → go, mid → pause, high → stop", a
       })
     ).data.directive;
 
-  assert.equal((await dir(0)).decision, "go");
-  assert.equal((await dir(2)).decision, "pause");
+  assert.equal((await dir(1)).decision, "go"); // auto 0–1
+  assert.equal((await dir(2)).decision, "pause"); // escalate ≥ 2
   const stop = await dir(4);
   assert.equal(stop.decision, "stop");
   assert.match(stop.reason, /out-of-band/);

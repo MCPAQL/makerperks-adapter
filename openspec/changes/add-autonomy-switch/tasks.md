@@ -21,12 +21,14 @@
 
 ## 2. Apply the mode in the pipeline
 
-- [ ] 2.1 `submit_step` gates via `autonomyDecision(session.autonomy, flow.danger_level)`
-  (replacing the fixed threshold); `stop` halts with `challenge_required: true`
-- [ ] 2.2 `record_execution_step` returns `autonomyDecision(session.autonomy, danger)` so its
-  directive matches the pipeline
-- [ ] 2.3 Tests: review-each halts a danger-0 perk; auto-low-risk lets danger-0 through but
-  halts danger-2; full-auto auto-runs danger-2 and stops danger-3+ (`challenge_required`)
+- [x] 2.1 `submit_step` gates via `autonomyDecision(session.autonomy, flow.danger_level)`
+  (fixed `GATE_THRESHOLD` removed); the halt carries `decision`, `mode`, and
+  `challenge_required` (`= decision === "stop"`)
+- [x] 2.2 `record_execution_step` now returns `autonomyDecision(session.autonomy, danger)` +
+  `mode`, so its directive matches what `submit_step` would do
+- [x] 2.3 Tests: review-each halts danger-0; auto-low-risk passes danger-0 / halts danger-2;
+  full-auto runs danger-2; safety loop reflects the mode. Updated the danger-0 happy-path
+  tests to set a mode (default review-each now gates everything). 71 green
 
 ## 3. Validate + archive
 

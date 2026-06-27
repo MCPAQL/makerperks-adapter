@@ -10,7 +10,7 @@ import { ok, err } from "../core/wire.js";
 import type { Router } from "../core/router.js";
 import type { DataSource } from "../data/source.js";
 import { getApplicationFlow } from "../data/flows.js";
-import { AUTONOMY_MODES } from "../session/state.js";
+import { AUTONOMY_MODES, autonomyDecision } from "../session/state.js";
 import type {
   AutonomyMode,
   ConfirmationToken,
@@ -28,9 +28,6 @@ const NEXT_STAGE: Record<Exclude<ExecutionStage, "done">, ExecutionStage> = {
   redeem: "done",
 };
 
-// Steps at or above this danger level halt for confirmation. Fixed here; the *configurable*
-// review-each / auto-low-risk / full-auto threshold is the autonomy switch (#18).
-const GATE_THRESHOLD = 1;
 const CONFIRMATION_TTL_MS = 5 * 60 * 1000;
 
 /** A stable, key-sorted serialization used to bind a confirmation token to its inputs. */
@@ -160,7 +157,9 @@ export function registerExecuteOperations(
       // Batch-with-halting: a gated step pauses for a single-use, param-bound confirmation
       // token. `consumed` carries the token to mark used in the same write that advances.
       let consumed: ConfirmationToken | undefined;
-      if (execution.stage === "submission" && flow.danger_level >= GATE_THRESHOLD) {
+      const mode = state.autonomy ?? "review_each";
+      const decision = autonomyDecision(mode, flow.danger_level);
+      if (execution.stage === "submission" && decision !== "go") {
         const now = Date.now();
         const paramsHash = stableStringify(mergedInputs);
         const provided = params.confirmation_token as string | undefined;
@@ -188,9 +187,15 @@ export function registerExecuteOperations(
             stage: "submission",
             status: "halted",
             confirmation_required: true,
+            challenge_required: decision === "stop",
+            decision,
+            mode,
             confirmation_token: ct.token,
             danger_level: flow.danger_level,
-            reason: `submission for ${execution.slug} is danger ${flow.danger_level} — confirm to proceed`,
+            reason:
+              decision === "stop"
+                ? `submission for ${execution.slug} is danger ${flow.danger_level} — out-of-band challenge required`
+                : `submission for ${execution.slug} is danger ${flow.danger_level} (mode ${mode}) — confirm to proceed`,
             expires_at: ct.expiresAt,
             next_step: "resume submit_step with the confirmation_token to proceed",
           });
@@ -367,20 +372,15 @@ export function registerExecuteOperations(
         }
       }
 
-      let decision: "go" | "pause" | "stop";
-      let reason: string;
-      if (danger < GATE_THRESHOLD) {
-        decision = "go";
-        reason = "below the gate threshold";
-      } else if (danger >= 3) {
-        decision = "stop";
-        reason =
-          "highest-risk action (payment / real identity) — requires an out-of-band challenge-response";
-      } else {
-        decision = "pause";
-        reason = "at or above the gate threshold — confirm before proceeding";
-      }
-      return ok({ directive: { decision, danger_level: danger, reason, hint } });
+      const mode = store.get().autonomy ?? "review_each";
+      const decision = autonomyDecision(mode, danger);
+      const reason =
+        decision === "go"
+          ? `below the gate for ${mode}`
+          : decision === "stop"
+            ? "highest-risk action (payment / real identity) — requires an out-of-band challenge-response"
+            : `at or above the gate for ${mode} — confirm before proceeding`;
+      return ok({ directive: { decision, danger_level: danger, mode, reason, hint } });
     },
   });
 
