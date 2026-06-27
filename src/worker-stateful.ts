@@ -15,9 +15,14 @@ import OAuthProvider, {
   type AuthRequest,
 } from "@cloudflare/workers-oauth-provider";
 import { McpAgent } from "agents/mcp";
-import { buildApp } from "./app.js";
+import { buildRouter } from "./app.js";
 import { createMcpServer } from "./mcp.js";
-import { freshSessionState, type SessionState } from "./session/state.js";
+import { DataSource } from "./data/source.js";
+import {
+  freshSessionState,
+  type SessionState,
+  type SessionStore,
+} from "./session/state.js";
 import {
   decodeAuthState,
   encodeAuthState,
@@ -26,7 +31,6 @@ import {
   type GitHubOAuthConfig,
 } from "./auth/github.js";
 import type { Server } from "@modelcontextprotocol/sdk/server/index.js";
-import type { Router } from "./core/router.js";
 
 interface Env {
   OAUTH_KV: KVNamespace;
@@ -50,17 +54,19 @@ function githubConfig(env: Env): GitHubOAuthConfig {
   };
 }
 
-// Cache the data/router per isolate; the Durable Object holds *session* state, not the
-// dataset. Don't cache a failed load.
-let routerPromise: Promise<Router> | undefined;
-function getRouter(env: Env): Promise<Router> {
-  routerPromise ??= buildApp(env.PERKS_URL ? { source: env.PERKS_URL } : {})
-    .then((app) => app.router)
-    .catch((error) => {
-      routerPromise = undefined;
-      throw error;
-    });
-  return routerPromise;
+// Cache the DATA per isolate (the expensive part); the router is rebuilt per session so its
+// EXECUTE ops can bind to that session's Durable Object state. Don't cache a failed load.
+let dataPromise: Promise<DataSource> | undefined;
+function getData(env: Env): Promise<DataSource> {
+  dataPromise ??= (async () => {
+    const data = new DataSource(env.PERKS_URL ? { source: env.PERKS_URL } : {});
+    await data.ensureLoaded();
+    return data;
+  })().catch((error) => {
+    dataPromise = undefined;
+    throw error;
+  });
+  return dataPromise;
 }
 
 /**
@@ -70,21 +76,25 @@ function getRouter(env: Env): Promise<Router> {
  * stateful. McpAgent runs `init()` and then reads `this.server`, connecting its own
  * Streamable HTTP transport.
  *
- * Each session carries its own `SessionState` (`initialState`) — the typed home for
- * confirmation tokens + EXECUTE context. READ does NOT touch it; the application pipeline
- * (#17) populates it. Per-session isolation is guaranteed by one DO per session and
- * verified live in §4.
+ * Each session carries its own `SessionState` (`initialState`) — the home for confirmation
+ * tokens + executions. The router is built per session bound to a DO-backed `SessionStore`,
+ * so the EXECUTE pipeline (#17) reads/writes *this* session's state. Per-session isolation
+ * is guaranteed by one DO per session.
  */
 export class MakerPerksMcpAgent extends McpAgent<Env, SessionState> {
   // A fresh, per-session state container — never a shared reference across sessions.
   initialState: SessionState = freshSessionState();
 
-  // Built in init() from the cached router; read by McpAgent after init() resolves.
+  // Built in init() from the cached data + this session's store; read after init() resolves.
   server!: Server;
 
   async init(): Promise<void> {
-    const router = await getRouter(this.env);
-    this.server = createMcpServer(router);
+    const data = await getData(this.env);
+    const store: SessionStore = {
+      get: () => this.state,
+      set: (next) => this.setState(next),
+    };
+    this.server = createMcpServer(buildRouter(data, { sessionStore: store }));
   }
 }
 

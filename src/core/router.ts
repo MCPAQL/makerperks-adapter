@@ -4,7 +4,7 @@
 
 import { err, type AqlRequest, type Result } from "./wire.js";
 
-export type SemanticCategory = "READ"; // CREATE/UPDATE/DELETE/EXECUTE added in Stage 1.
+export type SemanticCategory = "READ" | "EXECUTE"; // CREATE/UPDATE/DELETE later (#34–#36).
 
 export type ParamType = "string" | "number" | "boolean" | "string[]";
 

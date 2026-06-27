@@ -13,15 +13,18 @@
 
 ## 1. EXECUTE category + session plumbing
 
-- [ ] 1.1 Add `EXECUTE` to the Router `SemanticCategory`; add a `SessionStore` interface
-  (`get(): SessionState; set(next): void | Promise<void>`)
-- [ ] 1.2 Split data-load (cached per isolate) from router assembly; `buildApp` accepts an
-  optional `sessionStore` and registers EXECUTE ops only when present
-- [ ] 1.3 `createMcpServer` exposes a second tool `mcp_aql_execute` (route to `dispatch`);
-  `mcp_aql_read` + introspect unchanged. Wire stores: in-memory for stdio (`index.ts`),
-  DO-backed in `worker-stateful.ts` (rebuild router per agent; cache data only), **none** in
-  the live `worker.ts`
-- [ ] 1.4 Tests: `mcp_aql_execute` present only when a store is wired; READ surface unchanged
+- [x] 1.1 Added `EXECUTE` to the Router `SemanticCategory`; `SessionStore` interface +
+  `inMemorySessionStore` in `src/session/state.ts`; typed `Execution` / `ConfirmationToken`
+- [x] 1.2 `buildRouter(data, {sessionStore?})` split from `buildApp`; EXECUTE ops register
+  only when a store is present (data-load is separable for the per-isolate cache)
+- [x] 1.3 `createMcpServer` adds `mcp_aql_execute` **iff** the router has EXECUTE ops;
+  `mcp_aql_read` + introspect unchanged. Stores wired: in-memory (`index.ts`, the local
+  mode), DO-backed in `worker-stateful.ts` (caches data, rebuilds router per agent bound to
+  `this.state`/`setState`), **none** in the live `worker.ts` (stays READ-only)
+- [x] 1.4 `src/operations/execute.ts` (start_application + get_status for §1); tests:
+  EXECUTE registers only with a store, lifecycle create→status, unknown-slug/id 404,
+  per-session isolation, and an http end-to-end (`mcp_aql_execute` exposed + dispatches).
+  Transport parity updated to the 8-op read+execute surface. 51 green
 
 ## 2. Simulated application lifecycle
 

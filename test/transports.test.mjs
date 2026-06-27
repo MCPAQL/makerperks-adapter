@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { buildApp } from "../dist/app.js";
+import { inMemorySessionStore } from "../dist/session/state.js";
 import { startHttp } from "../dist/transports/http.js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
@@ -33,7 +34,12 @@ async function viaStdio() {
 }
 
 async function viaHttp(port) {
-  const { router } = await buildApp({ source: FIXTURE });
+  // Match the stdio entry, which wires an in-memory store (the local personal-tool mode),
+  // so both transports expose the same READ + EXECUTE surface.
+  const { router } = await buildApp({
+    source: FIXTURE,
+    sessionStore: inMemorySessionStore(),
+  });
   const handle = await startHttp(router, { port });
   const client = new Client({ name: "test", version: "0.0.0" });
   await client.connect(new StreamableHTTPClientTransport(new URL(handle.url)));
@@ -49,19 +55,17 @@ async function viaHttp(port) {
   return { tools, ops };
 }
 
-test("stdio: a single mcp_aql_read tool, introspect lists 6 ops", async () => {
+test("stdio: read + execute tools, introspect lists 8 ops", async () => {
   const { tools, ops } = await viaStdio();
-  assert.deepEqual(tools, ["mcp_aql_read"]);
-  assert.equal(ops.length, 6);
-  assert.ok(
-    ops.includes("get_application_flow") && ops.includes("list_application_flows"),
-  );
+  assert.deepEqual(tools, ["mcp_aql_read", "mcp_aql_execute"]);
+  assert.equal(ops.length, 8);
+  assert.ok(ops.includes("get_application_flow") && ops.includes("start_application"));
 });
 
-test("streamable http: a single mcp_aql_read tool, introspect lists 6 ops", async () => {
+test("streamable http: read + execute tools, introspect lists 8 ops", async () => {
   const { tools, ops } = await viaHttp(38974);
-  assert.deepEqual(tools, ["mcp_aql_read"]);
-  assert.equal(ops.length, 6);
+  assert.deepEqual(tools, ["mcp_aql_read", "mcp_aql_execute"]);
+  assert.equal(ops.length, 8);
 });
 
 test("transport parity: same operations over stdio and streamable http", async () => {

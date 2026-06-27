@@ -2,13 +2,19 @@
 // Config via env: MAKERPERKS_SOURCE (perks.json URL/path), MAKERPERKS_PORT (HTTP).
 
 import { buildApp } from "./app.js";
+import { inMemorySessionStore } from "./session/state.js";
 import { startStdio } from "./transports/stdio.js";
 import { startHttp } from "./transports/http.js";
 
 async function main(): Promise<void> {
   const useHttp = process.argv.includes("--transport=http");
   const source = process.env.MAKERPERKS_SOURCE;
-  const { router } = await buildApp(source ? { source } : {});
+  // A local single-process session gets an in-memory store — the EXECUTE pipeline runs
+  // entirely on-device (the local personal-tool mode).
+  const { router } = await buildApp({
+    ...(source ? { source } : {}),
+    sessionStore: inMemorySessionStore(),
+  });
 
   if (useHttp) {
     const portEnv = process.env.MAKERPERKS_PORT;
