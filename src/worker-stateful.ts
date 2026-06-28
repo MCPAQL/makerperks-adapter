@@ -23,6 +23,16 @@ import {
   type SessionState,
   type SessionStore,
 } from "./session/state.js";
+import type { ProfileStore, UserRecord } from "./session/profile.js";
+import {
+  vaultCrypto,
+  importVaultKey,
+  fromBase64,
+  type VaultCrypto,
+} from "./session/vault.js";
+import { MakerProfileDO } from "./durable-profile.js";
+// Re-exported so wrangler can bind the DO class (class_name "MakerProfileDO") from this entry.
+export { MakerProfileDO } from "./durable-profile.js";
 import {
   decodeAuthState,
   encodeAuthState,
@@ -40,11 +50,24 @@ interface RateLimit {
 interface Env {
   OAUTH_KV: KVNamespace;
   MCP_OBJECT: DurableObjectNamespace;
+  // Per-USER profile/vault store (#51). One DO per user via idFromName(userId).
+  PROFILE_OBJECT: DurableObjectNamespace<MakerProfileDO>;
   PERKS_URL?: string;
   MCP_RATE_LIMITER: RateLimit;
   // Set as Worker secrets on the dev Worker (`wrangler secret put ... -c wrangler.dev.jsonc`).
   GITHUB_CLIENT_ID?: string;
   GITHUB_CLIENT_SECRET?: string;
+  // Base64 of 32 random bytes — the AES-256 key for the credential vault (#19). When absent,
+  // the vault surface is simply not registered (the profile still works).
+  VAULT_KEY?: string;
+}
+
+// The OAuth-authenticated identity carried into the session DO as `this.props` (set by
+// completeAuthorization in the auth handler below).
+interface UserProps extends Record<string, unknown> {
+  userId: string;
+  login: string;
+  name?: string;
 }
 
 function githubConfig(env: Env): GitHubOAuthConfig {
@@ -87,7 +110,7 @@ function getData(env: Env): Promise<DataSource> {
  * so the EXECUTE pipeline (#17) reads/writes *this* session's state. Per-session isolation
  * is guaranteed by one DO per session.
  */
-export class MakerPerksMcpAgent extends McpAgent<Env, SessionState> {
+export class MakerPerksMcpAgent extends McpAgent<Env, SessionState, UserProps> {
   // A fresh, per-session state container — never a shared reference across sessions.
   initialState: SessionState = freshSessionState();
 
@@ -100,7 +123,29 @@ export class MakerPerksMcpAgent extends McpAgent<Env, SessionState> {
       get: () => this.state,
       set: (next) => this.setState(next),
     };
-    this.server = createMcpServer(buildRouter(data, { sessionStore: store }));
+
+    // Per-USER state (#51): bind a ProfileStore + vault to THIS user's Durable Object, keyed by
+    // the OAuth identity. A session can only ever reach its own user's record (structural
+    // isolation). Skipped if there is no authenticated user (the surface just isn't registered).
+    const userId = this.props?.userId;
+    let profileStore: ProfileStore | undefined;
+    let vault: VaultCrypto | undefined;
+    if (userId) {
+      const ns = this.env.PROFILE_OBJECT;
+      const stub = ns.get(ns.idFromName(userId));
+      profileStore = {
+        get: () => stub.getRecord(),
+        set: (record: UserRecord) => stub.setRecord(record),
+        delete: () => stub.deleteRecord(),
+      };
+      if (this.env.VAULT_KEY) {
+        vault = vaultCrypto(await importVaultKey(fromBase64(this.env.VAULT_KEY)));
+      }
+    }
+
+    this.server = createMcpServer(
+      buildRouter(data, { sessionStore: store, profileStore, vaultCrypto: vault }),
+    );
   }
 }
 

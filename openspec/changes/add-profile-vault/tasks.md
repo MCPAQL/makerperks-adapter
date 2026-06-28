@@ -50,12 +50,16 @@
 
 ## 3. Hosted per-user Durable Object + OAuth gating — #51
 
-- [ ] 3.1 A per-user Durable Object (`idFromName(userId)`) implementing `ProfileStore` over
-  its `storage`; `VAULT_KEY` Worker secret for AES-GCM
-- [ ] 3.2 `worker-stateful.ts` binds the `ProfileStore` to `this.props.userId`, so a session
-  can only ever read/write its own user's record; live worker unchanged
-- [ ] 3.3 Tests/verification: two users get isolated records; unauthenticated has no profile
-  access; deploy to `makerperks-dev.mcpaql.com` and confirm from Claude Desktop
+- [x] 3.1 Per-user Durable Object `MakerProfileDO` (`src/durable-profile.ts`, `idFromName(userId)`)
+  with an RPC `get/set/deleteRecord` surface over its `storage`; bound as `PROFILE_OBJECT` +
+  migration `v2` in `wrangler.dev.jsonc`; `VAULT_KEY` secret documented
+- [x] 3.2 `worker-stateful.ts` builds a `ProfileStore` (delegating to the user's DO stub) + a
+  `VaultCrypto` (from `VAULT_KEY`) bound to `this.props.userId`, so a session can only ever
+  read/write its own user's record; no userId → surface not registered; live worker untouched.
+  Typechecks + builds; 92 tests green
+- [ ] 3.3 Deploy: `wrangler secret put VAULT_KEY -c wrangler.dev.jsonc`, `npm run deploy:dev`;
+  verify two users get isolated records + unauthenticated has no profile access, from Claude
+  Desktop against `makerperks-dev.mcpaql.com`
 
 ## 4. Pipeline integration (assemble from profile; gated, audited secret-use) — #52
 

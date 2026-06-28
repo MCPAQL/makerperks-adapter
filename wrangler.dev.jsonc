@@ -16,11 +16,18 @@
   "kv_namespaces": [
     { "binding": "OAUTH_KV", "id": "ff6361cd98624fb3845c8f859e64bdde" },
   ],
-  // One Durable Object per MCP session (McpAgent). Default binding name `MCP_OBJECT`.
+  // Durable Objects: one per MCP session (McpAgent, `MCP_OBJECT`); one per USER for the
+  // profile + encrypted vault + audit log (`PROFILE_OBJECT`, #51), addressed by userId.
   "durable_objects": {
-    "bindings": [{ "name": "MCP_OBJECT", "class_name": "MakerPerksMcpAgent" }],
+    "bindings": [
+      { "name": "MCP_OBJECT", "class_name": "MakerPerksMcpAgent" },
+      { "name": "PROFILE_OBJECT", "class_name": "MakerProfileDO" },
+    ],
   },
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["MakerPerksMcpAgent"] }],
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["MakerPerksMcpAgent"] },
+    { "tag": "v2", "new_sqlite_classes": ["MakerProfileDO"] },
+  ],
   // Per-IP rate-limit backstop (mirrors the live worker). 100 requests / 10s per IP.
   "ratelimits": [
     {
@@ -29,9 +36,11 @@
       "simple": { "limit": 100, "period": 10 },
     },
   ],
-  // Real per-user OAuth (§3) delegates /authorize to GitHub. Two secrets are required —
+  // Real per-user OAuth (§3) delegates /authorize to GitHub. Three secrets are required —
   // set them on this Worker (NOT committed):
   //   wrangler secret put GITHUB_CLIENT_ID     -c wrangler.dev.jsonc
   //   wrangler secret put GITHUB_CLIENT_SECRET -c wrangler.dev.jsonc
+  //   wrangler secret put VAULT_KEY            -c wrangler.dev.jsonc   # base64 of 32 random bytes
   // Register the GitHub OAuth App with callback https://makerperks-dev.mcpaql.com/callback.
+  // Generate a vault key with:  node -e "console.log(Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString('base64'))"
 }
