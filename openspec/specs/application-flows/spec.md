@@ -7,15 +7,17 @@ TBD - created by archiving change add-provider-flows. Update Purpose after archi
 
 The adapter SHALL expose application-flow information for the directory through read-only
 operations discoverable via `introspect`: `get_application_flow(slug)` SHALL return the
-merged flow for one program, and `list_application_flows` SHALL return flow summaries,
-optionally filtered by `automatability`. These operations SHALL NOT modify state and SHALL
-NOT change the existing `list_programs` / `get_program` / `search_programs` surface.
+merged flow for one program **together with a `freshness` annotation** (`verified`, `stale`,
+`age_days`) derived from the flow's `verified` date, and `list_application_flows` SHALL return
+flow summaries, optionally filtered by `automatability`. These operations SHALL NOT modify state
+and SHALL NOT change the existing `list_programs` / `get_program` / `search_programs` surface.
 
 #### Scenario: Get a single program's flow
 
 - **WHEN** a client calls `get_application_flow` with a known program slug
 - **THEN** it receives that program's merged application flow (automatability, required
-  inputs, submission, redemption, danger level, confidence, and gaps)
+  inputs, submission, redemption, danger level, confidence, and gaps) and a `freshness`
+  annotation indicating whether the curated flow has aged past the staleness TTL
 
 #### Scenario: Unknown slug
 

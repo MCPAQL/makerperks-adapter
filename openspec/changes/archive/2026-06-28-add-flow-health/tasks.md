@@ -36,6 +36,7 @@
 
 ## 3. Validate + archive — #62
 
-- [ ] 3.1 `openspec validate add-flow-health --strict`; typecheck/lint/both test layers green
-- [ ] 3.2 Archive into `openspec/specs/` (`flow-health` created; the `application-flows` delta
+- [x] 3.1 `openspec validate add-flow-health --strict`; typecheck/lint/both test layers green
+  (134 node:test + 6 vitest)
+- [x] 3.2 Archive into `openspec/specs/` (`flow-health` created; the `application-flows` delta
   applied)
