@@ -23,5 +23,5 @@
 
 ## 2. Validate + archive
 
-- [ ] 2.1 `openspec validate add-proposal-attribution --strict`; typecheck/lint/both test layers green
-- [ ] 2.2 Archive into `openspec/specs/` (the `flow-acceptance` attribution requirement applied)
+- [x] 2.1 `openspec validate add-proposal-attribution --strict`; typecheck/lint/both test layers green
+- [x] 2.2 Archive into `openspec/specs/` (the `flow-acceptance` attribution requirement applied)
