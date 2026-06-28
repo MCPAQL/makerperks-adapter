@@ -16,15 +16,17 @@
 
 ## 1. Status model + surfacing + the policy knobs
 
-- [ ] 1.1 `data/status.ts`: `ProgramStatus`, `StatusPolicy`, the `DEFAULT` policy (surface/flag
-  only), and a pure helper to resolve a program's status (default `Active`) + its policy entry
-- [ ] 1.2 Surface `status` on `get_application_flow`, `get_discovery_brief`, and the
-  `list_application_flows` summaries
-- [ ] 1.3 `UserRecord.statusPolicy` + `get_status_policy` / `set_status_policy(status, listing?,
+- [x] 1.1 `data/status.ts`: `ProgramStatus`, `StatusPolicy`, the `DEFAULT` policy (surface/flag
+  only), and pure helpers to resolve a program's status (default `Active`) + its policy entry
+  (`resolveStatus` / `effectiveStatusPolicy` / `statusEntryFor`)
+- [x] 1.2 Surface `status` on the `ApplicationFlow` (so `get_application_flow` + `start_flow_discovery`
+  carry it), `get_discovery_brief` (via the program/baseline), and the `list_application_flows`
+  summaries
+- [x] 1.3 `UserRecord.statusPolicy` + `get_status_policy` / `set_status_policy(status, listing?,
   proposal?)` ops on the per-user `ProfileStore` (registered with the profile surface); invalid
-  `listing`/`proposal` → a validation error
-- [ ] 1.4 Tests: status is surfaced (default `Active`); the default policy excludes/blocks nothing;
-  set/get round-trips per-user; an invalid value is rejected
+  `status`/`listing`/`proposal` → a validation error
+- [x] 1.4 Tests: status is surfaced (default `Active`); the default policy excludes/blocks nothing;
+  a partial override falls back to DEFAULT; set/get round-trips per-user; invalid values rejected
 
 ## 2. Listings honor `exclude`
 

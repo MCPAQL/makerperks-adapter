@@ -9,6 +9,7 @@
 
 import type { PerkProgram } from "./source.js";
 import type { FlowSource } from "./flow-source.js";
+import { resolveStatus, type ProgramStatus } from "./status.js";
 
 export type Automatability = "api" | "web_only" | "manual_review" | "unknown";
 export type Confidence = "derived" | "curated";
@@ -49,6 +50,8 @@ export interface ApplicationFlow {
   slug: string;
   provider: string;
   title: string;
+  /** The program's published directory status (from perks.json; defaults to Active). #36 */
+  status: ProgramStatus;
   automatability: Automatability;
   confidence: Confidence;
   required_inputs: RequiredInput[];
@@ -72,7 +75,7 @@ export interface ApplicationFlow {
  * in the overlay.
  */
 export type CuratedFlow = Partial<
-  Omit<ApplicationFlow, "slug" | "provider" | "title" | "confidence">
+  Omit<ApplicationFlow, "slug" | "provider" | "title" | "confidence" | "status">
 >;
 export type CuratedFlows = Record<string, CuratedFlow>;
 
@@ -305,6 +308,7 @@ export function deriveFlow(p: PerkProgram): ApplicationFlow {
     slug: p.slug,
     provider: p.provider,
     title: p.title,
+    status: resolveStatus(p),
     automatability,
     confidence: "derived",
     required_inputs,
@@ -330,6 +334,7 @@ export function mergeFlow(
     slug: derived.slug,
     provider: derived.provider,
     title: derived.title,
+    status: derived.status, // from the program/directory, never authored in the overlay
     confidence: "curated",
     automatability: curated.automatability ?? derived.automatability,
     required_inputs: curated.required_inputs ?? derived.required_inputs,

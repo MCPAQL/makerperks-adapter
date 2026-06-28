@@ -8,6 +8,8 @@
 // local user; the hosted endpoint binds `this.props.userId`'s Durable Object (#51).
 // See openspec/changes/add-profile-vault (#19 + #34).
 
+import type { ProgramStatus, StatusEntry } from "../data/status.js";
+
 /** A public link on a maker profile (portfolio, GitHub, project site). */
 export interface ProfileLink {
   label: string;
@@ -97,6 +99,10 @@ export interface UserRecord {
   vault?: VaultEntry[];
   audit?: AuditEntry[];
   flowHealth?: Record<string, FlowHealth>;
+  /** This user's per-status directory view/proposal policy (#36 add-directory-status). A partial
+   * override; absent statuses fall back to DEFAULT. Per-user — how you view the directory by status
+   * is personal (the accepted flows stay shared). */
+  statusPolicy?: Partial<Record<ProgramStatus, Partial<StatusEntry>>>;
 }
 
 /** Append an audit entry to a record (bounded to the newest AUDIT_CAP), returning a new record. */

@@ -90,6 +90,7 @@ export function registerFlowOperations(
         slug: f.slug,
         provider: f.provider,
         title: f.title,
+        status: f.status,
         automatability: f.automatability,
         confidence: f.confidence,
         danger_level: f.danger_level,

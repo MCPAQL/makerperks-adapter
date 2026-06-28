@@ -13,6 +13,7 @@ import { registerVaultOperations } from "./operations/vault.js";
 import { registerFlowHealthOperations } from "./operations/flow-health.js";
 import { registerFlowDiscoveryOperations } from "./operations/flow-discovery.js";
 import { registerFlowAcceptanceOperations } from "./operations/flow-acceptance.js";
+import { registerStatusOperations } from "./operations/status.js";
 import { DataSource, type DataSourceOptions } from "./data/source.js";
 import { FlowSource } from "./data/flow-source.js";
 import type { SessionStore } from "./session/state.js";
@@ -91,6 +92,8 @@ export function buildRouter(
     registerProfileOperations(router, options.profileStore);
     // Per-user flow health (#47 piece B) — needs the flow overlay + the per-user store.
     registerFlowHealthOperations(router, data, flows, options.profileStore);
+    // Per-user directory status policy (#36 add-directory-status) — the personal view/proposal knobs.
+    registerStatusOperations(router, options.profileStore);
     // The vault needs both a per-user store and a key to seal/open; register only with both.
     if (options.vaultCrypto) {
       registerVaultOperations(router, options.profileStore, options.vaultCrypto);

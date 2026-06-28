@@ -1,0 +1,85 @@
+// §1 (#36 add-directory-status): the status model + surfacing + per-user policy knobs.
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { buildApp } from "../dist/app.js";
+import { inMemoryProfileStore } from "../dist/session/profile.js";
+import {
+  resolveStatus,
+  effectiveStatusPolicy,
+  DEFAULT_STATUS_POLICY,
+} from "../dist/data/status.js";
+
+const FIXTURE = "test/fixtures/perks.sample.json";
+const withStore = () =>
+  buildApp({ source: FIXTURE, profileStore: inMemoryProfileStore() });
+const d = (router, operation, params = {}) => router.dispatch({ operation, params });
+
+test("resolveStatus defaults to Active for an absent/unknown status", () => {
+  assert.equal(resolveStatus({ status: "Discontinued" }), "Discontinued");
+  assert.equal(resolveStatus({}), "Active");
+  assert.equal(resolveStatus({ status: "bogus" }), "Active");
+});
+
+test("the default policy surfaces/flags but excludes/blocks nothing", () => {
+  const p = effectiveStatusPolicy(undefined);
+  assert.deepEqual(p, DEFAULT_STATUS_POLICY);
+  for (const s of Object.keys(p)) assert.equal(p[s].listing, "include");
+  assert.equal(p.Active.proposal, "allow");
+  assert.equal(p.Discontinued.proposal, "flag");
+});
+
+test("a partial stored override falls back to DEFAULT per status", () => {
+  const eff = effectiveStatusPolicy({ Discontinued: { listing: "exclude" } });
+  assert.deepEqual(eff.Discontinued, { listing: "exclude", proposal: "flag" });
+  assert.deepEqual(eff.Active, DEFAULT_STATUS_POLICY.Active);
+});
+
+test("status is surfaced on get_application_flow + the list summaries", async () => {
+  const { router } = await buildApp({ source: FIXTURE });
+  const one = await d(router, "get_application_flow", {
+    slug: "anthropic/anthropic-startup-program",
+  });
+  assert.equal(one.data.flow.status, "Active");
+  const list = await d(router, "list_application_flows", {});
+  assert.ok(list.data.flows.every((f) => typeof f.status === "string"));
+});
+
+test("status policy ops register only with a profile store; default round-trips", async () => {
+  const { router } = await withStore();
+  const ops = (await d(router, "introspect")).data.operations.map((o) => o.name);
+  assert.ok(ops.includes("get_status_policy") && ops.includes("set_status_policy"));
+  const def = await d(router, "get_status_policy");
+  assert.equal(def.data.policy.Discontinued.listing, "include");
+
+  const { router: noStore } = await buildApp({ source: FIXTURE });
+  const noOps = (await d(noStore, "introspect")).data.operations.map((o) => o.name);
+  assert.ok(!noOps.includes("get_status_policy"));
+});
+
+test("set_status_policy updates one status per-user; others untouched", async () => {
+  const { router } = await withStore();
+  await d(router, "set_status_policy", {
+    status: "Discontinued",
+    listing: "exclude",
+    proposal: "block",
+  });
+  const got = await d(router, "get_status_policy");
+  assert.deepEqual(got.data.policy.Discontinued, {
+    listing: "exclude",
+    proposal: "block",
+  });
+  assert.deepEqual(got.data.policy.Active, DEFAULT_STATUS_POLICY.Active);
+});
+
+test("set_status_policy rejects invalid status / listing / proposal", async () => {
+  const { router } = await withStore();
+  assert.equal(
+    (await d(router, "set_status_policy", { status: "Nope" })).error.code,
+    "VALIDATION_INVALID_TYPE",
+  );
+  assert.equal(
+    (await d(router, "set_status_policy", { status: "Beta", listing: "maybe" })).error
+      .code,
+    "VALIDATION_INVALID_TYPE",
+  );
+});
