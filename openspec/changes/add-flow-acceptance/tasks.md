@@ -32,16 +32,16 @@
 
 ## 2. The acceptance dial + accept + live serving
 
-- [ ] 2.1 `set_acceptance_mode` / `get_acceptance_mode` (default `review_each`); invalid mode → a
+- [x] 2.1 `set_acceptance_mode` / `get_acceptance_mode` (default `review_each`); invalid mode → a
   validation error
-- [ ] 2.2 `accept_flow` (+ the propose-time auto-accept per the dial): re-checks the server verdict
+- [x] 2.2 `accept_flow` (+ the propose-time auto-accept per the dial): re-checks the server verdict
   is `ready_for_proposal`; applies the danger floors (auto-accept only `≤ 1` / `≤ 2` by mode;
   `≥ 3` never auto, explicit human only); atomically marks accepted + writes the accepted overlay
-- [ ] 2.3 The flow-serving merge gains the accepted overlay as a third, highest-precedence layer:
+- [x] 2.3 The flow-serving merge gains the accepted overlay as a third, highest-precedence layer:
   `getApplicationFlow(program, flows, accepted?)`; the serving ops (`get_application_flow`,
   `list_application_flows`, `start_flow_discovery`) pass the registry's accepted overlay when wired;
   no registry → byte-identical to today
-- [ ] 2.4 Tests: review_each keeps a proposal pending; auto_low_risk auto-accepts a ready danger ≤ 1
+- [x] 2.4 Tests: review_each keeps a proposal pending; auto_low_risk auto-accepts a ready danger ≤ 1
   and escalates ≥ 2 / not-ready; full_auto auto-accepts danger ≤ 2 but never ≥ 3; a not-ready
   proposal can't be accepted in any mode; an accepted flow is served as `confidence: curated`; with
   no registry the served flow is unchanged

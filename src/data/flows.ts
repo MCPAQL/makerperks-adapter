@@ -351,8 +351,14 @@ export function mergeFlow(
 export function getApplicationFlow(
   program: PerkProgram,
   flows: FlowSource,
+  accepted?: CuratedFlows,
 ): ApplicationFlow {
-  return mergeFlow(deriveFlow(program), flows.curatedFor(program.slug));
+  // Precedence: derived baseline ⊕ flows.json overlay ⊕ accepted overlay (highest, #47 piece D).
+  // An accepted proposal's candidate is a complete curated record, so it replaces the flows.json
+  // overlay for that slug; with no registry wired, `accepted` is undefined and behavior is the
+  // baseline ⊕ flows.json overlay exactly as before.
+  const curated = accepted?.[program.slug] ?? flows.curatedFor(program.slug);
+  return mergeFlow(deriveFlow(program), curated);
 }
 
 // Flows go stale 90 days after they were last verified against the provider (#47 piece B). A

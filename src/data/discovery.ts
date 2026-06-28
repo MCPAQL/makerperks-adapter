@@ -12,6 +12,7 @@ import {
   collectCuratedFlowErrors,
   type ApplicationFlow,
   type CuratedFlow,
+  type CuratedFlows,
   type CuratedFlowContract,
 } from "./flows.js";
 import type { PerkProgram } from "./source.js";
@@ -54,13 +55,14 @@ export interface DiscoveryBrief {
 export function buildDiscoveryBrief(
   program: PerkProgram,
   flows: FlowSource,
+  accepted?: CuratedFlows,
 ): DiscoveryBrief {
   const baseline = deriveFlow(program);
   return {
     slug: program.slug,
     program,
     baseline,
-    current: getApplicationFlow(program, flows),
+    current: getApplicationFlow(program, flows, accepted),
     gaps: baseline.gaps,
     target: curatedFlowContract(),
     verification_contract: {

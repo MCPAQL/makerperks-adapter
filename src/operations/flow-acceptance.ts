@@ -10,8 +10,10 @@ import type { Router } from "../core/router.js";
 import type { DataSource } from "../data/source.js";
 import type { FlowSource } from "../data/flow-source.js";
 import { collectProposalFindings, diffFlow } from "../data/discovery.js";
-import type { CuratedFlow } from "../data/flows.js";
+import type { CuratedFlow, CuratedFlows } from "../data/flows.js";
 import {
+  ACCEPTANCE_MODES,
+  type AcceptanceMode,
   type FlowRegistry,
   type Proposal,
   type ProposalStatus,
@@ -25,8 +27,22 @@ function dangerOf(candidate: CuratedFlow): number {
   return typeof d === "number" && [0, 1, 2, 3, 4].includes(d) ? d : 0;
 }
 
+/**
+ * Whether a proposal auto-accepts at submission under the dial. In every mode it must be
+ * `ready` (so eligibility, which blocks readiness, is never auto-asserted) and `danger ≤ 2`
+ * (danger ≥ 3 — payment / real identity — always waits for an explicit human `accept_flow`):
+ * review_each never auto-accepts; auto_low_risk accepts danger ≤ 1; full_auto accepts danger ≤ 2.
+ */
+function autoAccepts(mode: AcceptanceMode, ready: boolean, danger: number): boolean {
+  if (!ready || danger >= 3) return false;
+  if (mode === "auto_low_risk") return danger <= 1;
+  if (mode === "full_auto") return danger <= 2;
+  return false; // review_each
+}
+
 /** A list view of a proposal: the queue fields + the diff vs the currently-served curated overlay. */
-function proposalView(p: Proposal, flows: FlowSource) {
+function proposalView(p: Proposal, flows: FlowSource, accepted?: CuratedFlows) {
+  const served = accepted?.[p.slug] ?? flows.curatedFor(p.slug);
   return {
     id: p.id,
     slug: p.slug,
@@ -39,7 +55,7 @@ function proposalView(p: Proposal, flows: FlowSource) {
     proposedAt: p.proposedAt,
     decidedAt: p.decidedAt,
     reason: p.reason,
-    diff: diffFlow(p.candidate, flows.curatedFor(p.slug)),
+    diff: diffFlow(p.candidate, served),
   };
 }
 
@@ -102,6 +118,23 @@ export function registerFlowAcceptanceOperations(
         proposal.attestation = params.attestation as string;
       }
       await registry.put(proposal);
+      // The acceptance dial may auto-accept an eligible proposal at submission (review_each never
+      // does; danger ≥ 3 + not-ready never do — see autoAccepts).
+      if (
+        autoAccepts(
+          await registry.mode(),
+          verdict.ready_for_proposal,
+          proposal.danger_level,
+        )
+      ) {
+        const decided = await registry.decide(proposal.id, "accepted");
+        return ok({
+          id: proposal.id,
+          status: decided.status,
+          verdict,
+          auto_accepted: true,
+        });
+      }
       return ok({ id: proposal.id, status: proposal.status, verdict });
     },
   });
@@ -134,12 +167,13 @@ export function registerFlowAcceptanceOperations(
     returns: "An object with `count` and `proposals` (each with its verdict + diff).",
     handler: async (params) => {
       await flows.ensureLoaded();
+      const accepted = await registry.accepted();
       const proposals = await registry.list({
         status: params.status as ProposalStatus | undefined,
         provider: params.provider as string | undefined,
         minDanger: params.min_danger as number | undefined,
       });
-      const view = proposals.map((p) => proposalView(p, flows));
+      const view = proposals.map((p) => proposalView(p, flows, accepted));
       return ok({ count: view.length, proposals: view });
     },
   });
@@ -221,5 +255,84 @@ export function registerFlowAcceptanceOperations(
       );
       return ok({ id, status: decided.status, reason: decided.reason });
     },
+  });
+
+  router.register({
+    name: "accept_flow",
+    semanticCategory: "UPDATE",
+    description:
+      "Explicitly accept a pending proposal into the served overlay (the human-review path, and " +
+      "the only path for danger >= 3). Re-checks the server verdict is `ready_for_proposal`; on " +
+      "accept, atomically marks the proposal accepted and publishes its candidate so the flow is " +
+      "served live. A not-ready proposal is not accepted and nothing is published.",
+    params: {
+      id: {
+        type: "string",
+        required: true,
+        description: "The proposal id to accept.",
+      },
+    },
+    returns:
+      "An object with `id`, `accepted` (boolean), `status`, and — when not accepted — the `verdict`.",
+    handler: async (params) => {
+      const id = params.id as string;
+      const existing = await registry.get(id);
+      if (!existing) {
+        return err("NOT_FOUND_RESOURCE", `no proposal with id: ${id}`, { id });
+      }
+      if (existing.status !== "pending") {
+        return err(
+          "CONFLICT_EXISTS",
+          `proposal ${id} is ${existing.status}, not pending`,
+          { id, status: existing.status },
+        );
+      }
+      if (!existing.verdict.ready_for_proposal) {
+        // Surfaced, never asserted: a not-ready proposal (e.g. unresolved eligibility) is not
+        // published. Fix it via update_proposed_flow.
+        return ok({
+          id,
+          accepted: false,
+          status: existing.status,
+          reason: "not ready for proposal",
+          verdict: existing.verdict,
+        });
+      }
+      const decided = await registry.decide(id, "accepted");
+      return ok({ id, accepted: true, status: decided.status });
+    },
+  });
+
+  router.register({
+    name: "set_acceptance_mode",
+    semanticCategory: "UPDATE",
+    description:
+      "Set the acceptance autonomy mode for the proposed-flow queue: review_each (default — a " +
+      "human accepts every proposal), auto_low_risk (auto-accept ready danger <= 1), or full_auto " +
+      "(auto-accept ready danger <= 2). In every mode the verify gate runs, eligibility is never " +
+      "auto-asserted, and danger >= 3 always waits for an explicit human accept.",
+    params: {
+      mode: {
+        type: "string",
+        required: true,
+        enum: ACCEPTANCE_MODES,
+        description: "review_each | auto_low_risk | full_auto.",
+      },
+    },
+    returns: "An object with the set `mode`.",
+    handler: async (params) => {
+      const mode = params.mode as AcceptanceMode;
+      await registry.setMode(mode);
+      return ok({ mode });
+    },
+  });
+
+  router.register({
+    name: "get_acceptance_mode",
+    semanticCategory: "READ",
+    description: "Read the acceptance autonomy mode for the proposed-flow queue.",
+    params: {},
+    returns: "An object with the current `mode`.",
+    handler: async () => ok({ mode: await registry.mode() }),
   });
 }

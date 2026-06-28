@@ -9,6 +9,7 @@ import type { Router } from "../core/router.js";
 import type { DataSource } from "../data/source.js";
 import type { FlowSource } from "../data/flow-source.js";
 import { getApplicationFlow, freshness, type Automatability } from "../data/flows.js";
+import type { FlowRegistry } from "../session/flow-registry.js";
 
 const AUTOMATABILITY = ["api", "web_only", "manual_review", "unknown"] as const;
 
@@ -16,6 +17,9 @@ export function registerFlowOperations(
   router: Router,
   data: DataSource,
   flows: FlowSource,
+  // When a registry is wired (#47 piece D), accepted flows override the flows.json overlay in the
+  // served result; absent it, serving is unchanged.
+  registry?: FlowRegistry,
 ): void {
   router.register({
     name: "get_application_flow",
@@ -42,7 +46,8 @@ export function registerFlowOperations(
       if (!program) {
         return err("NOT_FOUND_RESOURCE", `no program with slug: ${slug}`, { slug });
       }
-      const flow = getApplicationFlow(program, flows);
+      const accepted = registry ? await registry.accepted() : undefined;
+      const flow = getApplicationFlow(program, flows, accepted);
       return ok({ flow, freshness: freshness(flow) });
     },
   });
@@ -76,7 +81,8 @@ export function registerFlowOperations(
       const automatability = params.automatability as Automatability | undefined;
       const limit = params.limit as number | undefined;
 
-      let merged = data.programs().map((p) => getApplicationFlow(p, flows));
+      const accepted = registry ? await registry.accepted() : undefined;
+      let merged = data.programs().map((p) => getApplicationFlow(p, flows, accepted));
       if (automatability) {
         merged = merged.filter((f) => f.automatability === automatability);
       }

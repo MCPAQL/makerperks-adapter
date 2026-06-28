@@ -18,6 +18,7 @@ import {
 import { getApplicationFlow, freshness, type CuratedFlow } from "../data/flows.js";
 import { REDISCOVER_AFTER } from "./flow-health.js";
 import type { ProfileStore } from "../session/profile.js";
+import type { FlowRegistry } from "../session/flow-registry.js";
 
 export function registerFlowDiscoveryOperations(
   router: Router,
@@ -26,6 +27,8 @@ export function registerFlowDiscoveryOperations(
   // Optional per-user store: when wired, the entry point also consults piece-B flow health to
   // recommend re-discovery on a failing flow. Without it, the entry point uses freshness alone.
   store?: ProfileStore,
+  // Optional acceptance registry (#47 piece D): when wired, accepted flows are the served truth.
+  registry?: FlowRegistry,
 ): void {
   router.register({
     name: "get_discovery_brief",
@@ -152,7 +155,8 @@ export function registerFlowDiscoveryOperations(
       if (!program) {
         return err("NOT_FOUND_RESOURCE", `no program with slug: ${slug}`, { slug });
       }
-      const flow = getApplicationFlow(program, flows);
+      const accepted = registry ? await registry.accepted() : undefined;
+      const flow = getApplicationFlow(program, flows, accepted);
       const fresh = freshness(flow);
       const curated = flow.confidence === "curated";
       let flagged = false;
@@ -175,7 +179,7 @@ export function registerFlowDiscoveryOperations(
           slug,
           action: "discover",
           reason,
-          brief: buildDiscoveryBrief(program, flows),
+          brief: buildDiscoveryBrief(program, flows, accepted),
         });
       }
       return ok({ slug, action: "use", flow, freshness: fresh });

@@ -133,3 +133,155 @@ test("propose_flow errors on an unknown slug; update/reject error on an unknown 
   const noRej = await d(router, "reject_flow", { id: "missing" });
   assert.equal(noRej.error.code, "NOT_FOUND_RESOURCE");
 });
+
+// ── §2: the acceptance dial + accept + live serving ──────────────────────────
+
+const ready = (danger) => ({
+  automatability: "api",
+  submission: { method: "oauth_signup", action_url: "https://x.example.com/signup" },
+  redemption: { type: "auto" },
+  danger_level: danger,
+  source: "https://x.example.com/signup",
+  verified: "2026-06-28",
+});
+
+test("the dial defaults to review_each and rejects an invalid mode", async () => {
+  const { router } = await withQueue();
+  assert.equal((await d(router, "get_acceptance_mode")).data.mode, "review_each");
+  const bad = await d(router, "set_acceptance_mode", { mode: "yolo" });
+  assert.equal(bad.success, false); // enum validation
+  await d(router, "set_acceptance_mode", { mode: "full_auto" });
+  assert.equal((await d(router, "get_acceptance_mode")).data.mode, "full_auto");
+});
+
+test("review_each keeps every proposal pending", async () => {
+  const { router } = await withQueue();
+  const res = await d(router, "propose_flow", { slug: SLUG, candidate: ready(0) });
+  assert.equal(res.data.status, "pending");
+  assert.ok(!res.data.auto_accepted);
+});
+
+test("auto_low_risk auto-accepts ready danger<=1 and escalates the rest", async () => {
+  const { router } = await withQueue();
+  await d(router, "set_acceptance_mode", { mode: "auto_low_risk" });
+  assert.equal(
+    (await d(router, "propose_flow", { slug: SLUG, candidate: ready(1) })).data.status,
+    "accepted",
+  );
+  assert.equal(
+    (await d(router, "propose_flow", { slug: SLUG, candidate: ready(2) })).data.status,
+    "pending",
+  );
+  // not-ready (no provenance) stays pending even at danger 0
+  assert.equal(
+    (
+      await d(router, "propose_flow", {
+        slug: SLUG,
+        candidate: { automatability: "api" },
+      })
+    ).data.status,
+    "pending",
+  );
+});
+
+test("full_auto auto-accepts danger<=2 but never danger>=3", async () => {
+  const { router } = await withQueue();
+  await d(router, "set_acceptance_mode", { mode: "full_auto" });
+  assert.equal(
+    (await d(router, "propose_flow", { slug: SLUG, candidate: ready(2) })).data.status,
+    "accepted",
+  );
+  assert.equal(
+    (await d(router, "propose_flow", { slug: SLUG, candidate: ready(3) })).data.status,
+    "pending",
+  );
+});
+
+test("accept_flow publishes a ready proposal; it is then served live as curated", async () => {
+  const { router } = await withQueue();
+  const { data: created } = await d(router, "propose_flow", {
+    slug: SLUG,
+    candidate: ready(0),
+  });
+  // before acceptance: the served flow is the derived baseline
+  assert.equal(
+    (await d(router, "get_application_flow", { slug: SLUG })).data.flow.confidence,
+    "derived",
+  );
+
+  const acc = await d(router, "accept_flow", { id: created.id });
+  assert.equal(acc.data.accepted, true);
+  assert.equal(acc.data.status, "accepted");
+
+  const served = await d(router, "get_application_flow", { slug: SLUG });
+  assert.equal(served.data.flow.confidence, "curated");
+  assert.equal(served.data.flow.automatability, "api");
+});
+
+test("with no registry wired, serving is unchanged (derived baseline)", async () => {
+  const { router } = await buildApp({ source: FIXTURE });
+  const served = await d(router, "get_application_flow", { slug: SLUG });
+  assert.equal(served.data.flow.confidence, "derived");
+});
+
+test("accept_flow is the explicit human path for danger>=3", async () => {
+  const { router } = await withQueue();
+  await d(router, "set_acceptance_mode", { mode: "full_auto" });
+  const { data: created } = await d(router, "propose_flow", {
+    slug: SLUG,
+    candidate: ready(3),
+  });
+  assert.equal(created.status, "pending"); // never auto-accepted
+  const acc = await d(router, "accept_flow", { id: created.id });
+  assert.equal(acc.data.accepted, true); // explicit human accept allowed
+});
+
+test("accept_flow refuses a not-ready proposal and publishes nothing", async () => {
+  const { router } = await withQueue();
+  const { data: created } = await d(router, "propose_flow", {
+    slug: SLUG,
+    candidate: { automatability: "api" },
+  });
+  const acc = await d(router, "accept_flow", { id: created.id });
+  assert.equal(acc.data.accepted, false);
+  assert.ok(acc.data.verdict.provenance_findings.length >= 1);
+  assert.equal(
+    (await d(router, "get_application_flow", { slug: SLUG })).data.flow.confidence,
+    "derived",
+  );
+});
+
+test("accept_flow errors on an unknown id and on an already-decided proposal", async () => {
+  const { router } = await withQueue();
+  assert.equal(
+    (await d(router, "accept_flow", { id: "missing" })).error.code,
+    "NOT_FOUND_RESOURCE",
+  );
+  const { data: created } = await d(router, "propose_flow", {
+    slug: SLUG,
+    candidate: ready(0),
+  });
+  await d(router, "accept_flow", { id: created.id });
+  assert.equal(
+    (await d(router, "accept_flow", { id: created.id })).error.code,
+    "CONFLICT_EXISTS",
+  );
+});
+
+test("start_flow_discovery uses an accepted flow instead of re-discovering", async () => {
+  const { router } = await withQueue();
+  const { data: created } = await d(router, "propose_flow", {
+    slug: SLUG,
+    candidate: ready(0),
+  });
+  // before acceptance neon is uncurated → discover
+  assert.equal(
+    (await d(router, "start_flow_discovery", { slug: SLUG })).data.action,
+    "discover",
+  );
+  await d(router, "accept_flow", { id: created.id });
+  // after acceptance the fresh accepted flow is used
+  const after = await d(router, "start_flow_discovery", { slug: SLUG });
+  assert.equal(after.data.action, "use");
+  assert.equal(after.data.flow.confidence, "curated");
+});

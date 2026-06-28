@@ -48,11 +48,20 @@ export function buildRouter(
 ): Router {
   const router = new Router();
   registerReadOperations(router, data);
-  registerFlowOperations(router, data, flows);
+  // The flow-serving ops consult the accepted overlay when a registry is wired (#47 piece D), so
+  // accepted flows are served live; absent it, serving is unchanged.
+  registerFlowOperations(router, data, flows, options.flowRegistry);
   // Flow-discovery toolkit (#47 piece C) — model-free READ ops over data + flows; available on
   // every deployment (the agent above supplies the model + web). The optional profile store lets
-  // the entry point also consult per-user flow health (piece B).
-  registerFlowDiscoveryOperations(router, data, flows, options.profileStore);
+  // the entry point also consult per-user flow health (piece B); the optional registry lets it
+  // serve accepted flows (piece D).
+  registerFlowDiscoveryOperations(
+    router,
+    data,
+    flows,
+    options.profileStore,
+    options.flowRegistry,
+  );
   // Flow-acceptance toolkit (#47 piece D) — the shared proposed-flow review queue + acceptance
   // dial; registered only where a shared FlowRegistry is wired (local + the stateful endpoint).
   if (options.flowRegistry) {
