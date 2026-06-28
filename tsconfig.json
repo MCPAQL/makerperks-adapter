@@ -5,6 +5,7 @@
     "types": ["node", "@cloudflare/workers-types"],
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
+    "resolveJsonModule": true,
     "rootDir": "src",
     "outDir": "dist",
     "strict": true,

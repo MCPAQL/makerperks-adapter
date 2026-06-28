@@ -14,14 +14,17 @@
 
 ## 1. Flow Document model + `flows.json` + `FlowSource` loader — #57
 
-- [ ] 1.1 Define the Flow Document shape (today's `CuratedFlow` + additive `sources[]`); the
-  `flows.json` collection format (map slug → document); migrate the 3 curated spikes from
-  `provider-flows.ts` into `flows.json` + a bundled default the worker can import without fs
-- [ ] 1.2 `src/data/flow-source.ts` (`FlowSource`): configurable source (URL/file) + `fetchImpl`
-  override + **eval-free `collectCuratedFlowErrors`** validation + TTL refresh; `ensureLoaded()`
-  then sync `curatedFor(slug)`; bundled default fallback when no source is configured
-- [ ] 1.3 Unit tests: loads + validates `flows.json`; the 3 spikes merge identically to before;
-  a schema-invalid `flows.json` fails loud; `FLOWS_URL` override + bundled fallback both work
+- [x] 1.1 Flow Document shape = `CuratedFlow` + additive `sources[]` (type + `mergeFlow` +
+  eval-free validator updated in `flows.ts`); `src/data/flows.json` is the portable collection
+  (map slug → document); the 3 spikes migrated **verbatim** (parity-tested). The worker imports
+  it via `import … with { type: "json" }` (esbuild inlines; `tsc` emits it to `dist/` with
+  `resolveJsonModule`, so the node path resolves it too — no copy step)
+- [x] 1.2 `src/data/flow-source.ts` (`FlowSource`, mirrors `DataSource`): configurable source
+  (URL/file) + `fetchImpl` override + **eval-free `collectCuratedFlowErrors`** validation + TTL
+  refresh; `ensureLoaded()` then sync `curatedFor(slug)` / `all()`; bundled default when no source
+- [x] 1.3 Tests (`test/flow-source.test.mjs`): loads + resolves the bundled overlay; **verbatim
+  parity vs the old `provider-flows.ts`**; not-loaded throws; a fetched URL source validates; a
+  schema-invalid `flows.json` + a non-OK fetch fail loud. 124 node:test + 6 vitest green
 
 ## 2. Wire `getApplicationFlow` to the loaded overlay — #58
 

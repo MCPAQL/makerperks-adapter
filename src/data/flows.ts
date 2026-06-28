@@ -58,6 +58,8 @@ export interface ApplicationFlow {
   gaps: string[];
   /** "derived" for a heuristic baseline, or a provider-docs URL for curated. */
   source: string;
+  /** Per-claim provenance URLs (additive; #47 flow documents). */
+  sources?: string[];
   /** ISO date a curated flow was last verified against the provider. */
   verified?: string;
 }
@@ -137,6 +139,12 @@ export function collectCuratedFlowErrors(data: unknown): string[] {
     }
     if (r.source !== undefined && typeof r.source !== "string") {
       errors.push(`${at}/source must be a string`);
+    }
+    if (
+      r.sources !== undefined &&
+      !(Array.isArray(r.sources) && r.sources.every((s) => typeof s === "string"))
+    ) {
+      errors.push(`${at}/sources must be a string[]`);
     }
     if (r.verified !== undefined && typeof r.verified !== "string") {
       errors.push(`${at}/verified must be a string`);
@@ -285,6 +293,7 @@ export function mergeFlow(
     danger_level: curated.danger_level ?? derived.danger_level,
     gaps: curated.gaps ?? derived.gaps,
     source: curated.source ?? derived.source,
+    sources: curated.sources ?? derived.sources,
     verified: curated.verified ?? derived.verified,
   };
 }
