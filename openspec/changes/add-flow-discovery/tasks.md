@@ -43,17 +43,19 @@
 
 ## 3. Discovery entry point + fidelity oracle
 
-- [ ] 3.1 `start_flow_discovery(slug)` READ op: fresh (and healthy, where a `ProfileStore` is wired)
+- [x] 3.1 `start_flow_discovery(slug)` READ op: fresh (and healthy, where a `ProfileStore` is wired)
   → `{action: "use", flow, freshness}`; else → `{action: "discover", reason, brief}`
   (reason `uncurated` / `stale` / `rediscover`); calls no model
-- [ ] 3.2 `scoreFidelity(candidate, knownGood)` in `data/discovery.ts`: weighted field-level
+- [x] 3.2 `scoreFidelity(candidate, knownGood)` in `data/discovery.ts`: weighted field-level
   agreement over the load-bearing overlay fields
-- [ ] 3.3 `buildRouter` registers the four discovery ops (on `data` + `flows`; the entry point uses
+- [x] 3.3 `buildRouter` registers the four discovery ops (on `data` + `flows`; the entry point uses
   the optional `ProfileStore` for health)
-- [ ] 3.4 Tests: a fresh flow → `use`; an uncurated/stale flow → `discover` + brief; a spike scored
+- [x] 3.4 Tests: a fresh flow → `use`; an uncurated/stale flow → `discover` + brief; a spike scored
   against itself ≈ top of range; a degraded candidate scores lower
 - [ ] 3.5 Manual demo (DoD, not CI): a connected MCP agent regenerates the 3 spikes to acceptable
-  fidelity and discovers one never-seen perk end to end (brief → research → verify → diff)
+  fidelity and discovers one never-seen perk end to end (brief → research → verify → diff).
+  **Pending a live MCP-client run** — the toolkit is model-agnostic by design, so this runs with a
+  connected agent (Claude Desktop / a Dollhouse ensemble / etc.), not in CI.
 
 ## 4. Validate + archive
 

@@ -7,6 +7,7 @@ import {
   buildDiscoveryBrief,
   collectProposalFindings,
   diffFlow,
+  scoreFidelity,
 } from "../dist/data/discovery.js";
 import { FlowSource } from "../dist/data/flow-source.js";
 
@@ -170,4 +171,78 @@ test("diff_flow_proposal diffs an uncurated slug as all-added", async () => {
   assert.equal(res.data.added.automatability, "api");
   assert.deepEqual(res.data.changed, {});
   assert.deepEqual(res.data.removed, []);
+});
+
+// ── §3: discovery entry point + fidelity oracle ──────────────────────────────
+
+test("start_flow_discovery is an introspectable READ op", async () => {
+  const { router } = await buildApp({ source: FIXTURE });
+  const op = (await d(router, "introspect")).data.operations.find(
+    (o) => o.name === "start_flow_discovery",
+  );
+  assert.ok(op);
+  assert.equal(op.semantic_category, "READ");
+});
+
+test("start_flow_discovery uses a fresh curated flow", async () => {
+  const { router } = await buildApp({ source: FIXTURE });
+  // The anthropic spike is curated + recently verified in the bundled overlay.
+  const res = await d(router, "start_flow_discovery", {
+    slug: "anthropic/anthropic-startup-program",
+  });
+  assert.equal(res.success, true);
+  assert.equal(res.data.action, "use");
+  assert.equal(res.data.flow.confidence, "curated");
+  assert.equal(res.data.freshness.stale, false);
+});
+
+test("start_flow_discovery discovers an uncurated flow, attaching the brief", async () => {
+  const { router } = await buildApp({ source: FIXTURE });
+  // neon/neon-free-tier has no bundled overlay → a derived baseline → discover.
+  const res = await d(router, "start_flow_discovery", { slug: "neon/neon-free-tier" });
+  assert.equal(res.data.action, "discover");
+  assert.equal(res.data.reason, "uncurated");
+  assert.ok(res.data.brief && res.data.brief.target, "the brief is attached");
+});
+
+test("start_flow_discovery re-discovers a stale curated flow", async () => {
+  const { router } = await buildApp({
+    source: FIXTURE,
+    flowsSource: "test/fixtures/flows.stale.json", // neon curated, verified 2020 → stale
+  });
+  const res = await d(router, "start_flow_discovery", { slug: "neon/neon-free-tier" });
+  assert.equal(res.data.action, "discover");
+  assert.equal(res.data.reason, "stale");
+});
+
+test("start_flow_discovery errors on an unknown slug", async () => {
+  const { router } = await buildApp({ source: FIXTURE });
+  const res = await d(router, "start_flow_discovery", { slug: "nope/nope" });
+  assert.equal(res.success, false);
+  assert.equal(res.error.code, "NOT_FOUND_RESOURCE");
+});
+
+test("scoreFidelity: a spike scored against itself is a perfect match", async () => {
+  const flows = new FlowSource();
+  await flows.ensureLoaded();
+  for (const slug of [
+    "deepgram/deepgram-pricing-startup-credits",
+    "anthropic/anthropic-startup-program",
+    "gcp/google-ai-startup-program",
+  ]) {
+    const known = flows.curatedFor(slug);
+    assert.equal(scoreFidelity(known, known), 1, `${slug} self-fidelity is 1.0`);
+  }
+});
+
+test("scoreFidelity: a degraded candidate scores lower than the known-good", async () => {
+  const flows = new FlowSource();
+  await flows.ensureLoaded();
+  const known = flows.curatedFor("gcp/google-ai-startup-program");
+  const degraded = {
+    ...known,
+    automatability: "api", // wrong (known is web_only)
+    danger_level: 0, // wrong (known is 2)
+  };
+  assert.ok(scoreFidelity(degraded, known) < 1, "a divergent candidate is < 1.0");
 });

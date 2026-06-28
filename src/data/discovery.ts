@@ -205,3 +205,54 @@ export function diffFlow(candidate: CuratedFlow, current?: CuratedFlow): FlowDif
   }
   return { added, changed, removed };
 }
+
+// ── §3: the fidelity oracle ──────────────────────────────────────────────────────────────────
+
+/**
+ * How closely a candidate Flow Document matches a known-good one — the de-risking metric for the
+ * 3 spikes (regenerate a spike, score it against its `flows.json` entry). A weighted agreement
+ * over the load-bearing overlay fields: automatability, submission method/url, redemption type,
+ * danger level, and the required-input key set (Jaccard). Returns 0..1; 1.0 is a perfect match.
+ * Pure — the scorer is unit-testable with the spikes as fixtures, no model.
+ */
+export function scoreFidelity(candidate: CuratedFlow, knownGood: CuratedFlow): number {
+  const eq = (a: unknown, b: unknown) =>
+    a === undefined && b === undefined ? 1 : a === b ? 1 : 0;
+
+  const checks: Array<{ w: number; agree: number }> = [
+    { w: 2, agree: eq(candidate.automatability, knownGood.automatability) },
+    { w: 2, agree: eq(candidate.submission?.method, knownGood.submission?.method) },
+    {
+      w: 2,
+      agree: eq(candidate.submission?.action_url, knownGood.submission?.action_url),
+    },
+    { w: 1, agree: eq(candidate.redemption?.type, knownGood.redemption?.type) },
+    { w: 2, agree: eq(candidate.danger_level, knownGood.danger_level) },
+    {
+      w: 2,
+      agree: inputKeyAgreement(candidate.required_inputs, knownGood.required_inputs),
+    },
+  ];
+
+  let num = 0;
+  let den = 0;
+  for (const c of checks) {
+    den += c.w;
+    num += c.w * c.agree;
+  }
+  return den === 0 ? 1 : num / den;
+}
+
+/** Jaccard agreement over two required-input key sets (1 when both are absent/empty). */
+function inputKeyAgreement(
+  a: CuratedFlow["required_inputs"],
+  b: CuratedFlow["required_inputs"],
+): number {
+  const ka = new Set((a ?? []).map((i) => i.key));
+  const kb = new Set((b ?? []).map((i) => i.key));
+  if (ka.size === 0 && kb.size === 0) return 1;
+  let inter = 0;
+  for (const k of ka) if (kb.has(k)) inter += 1;
+  const union = ka.size + kb.size - inter;
+  return union === 0 ? 1 : inter / union;
+}

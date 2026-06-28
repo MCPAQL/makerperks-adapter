@@ -14,7 +14,7 @@ import { getApplicationFlow, freshness } from "../data/flows.js";
 import { appendAudit, type FlowHealth, type ProfileStore } from "../session/profile.js";
 
 // Consecutive failures at/above which a flow is flagged for re-discovery (piece C consumes this).
-const REDISCOVER_AFTER = 2;
+export const REDISCOVER_AFTER = 2;
 
 const OUTCOMES = ["success", "failure"] as const;
 

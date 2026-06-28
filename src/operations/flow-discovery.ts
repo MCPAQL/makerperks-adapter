@@ -15,12 +15,17 @@ import {
   collectProposalFindings,
   diffFlow,
 } from "../data/discovery.js";
-import type { CuratedFlow } from "../data/flows.js";
+import { getApplicationFlow, freshness, type CuratedFlow } from "../data/flows.js";
+import { REDISCOVER_AFTER } from "./flow-health.js";
+import type { ProfileStore } from "../session/profile.js";
 
 export function registerFlowDiscoveryOperations(
   router: Router,
   data: DataSource,
   flows: FlowSource,
+  // Optional per-user store: when wired, the entry point also consults piece-B flow health to
+  // recommend re-discovery on a failing flow. Without it, the entry point uses freshness alone.
+  store?: ProfileStore,
 ): void {
   router.register({
     name: "get_discovery_brief",
@@ -118,6 +123,62 @@ export function registerFlowDiscoveryOperations(
       }
       const current = flows.curatedFor(slug);
       return ok({ slug, ...diffFlow(params.candidate as CuratedFlow, current) });
+    },
+  });
+
+  router.register({
+    name: "start_flow_discovery",
+    semanticCategory: "READ",
+    description:
+      "The discovery entry point: drive the cache -> discover loop in one call. When the cached " +
+      "flow is fresh (and, where a per-user store is wired, not flagged for re-discovery) returns " +
+      "`{action: 'use', flow, freshness}`; otherwise returns `{action: 'discover', reason, brief}` " +
+      "with the reason (uncurated / stale / rediscover) and the discovery brief to act on. Calls " +
+      "no model.",
+    params: {
+      slug: {
+        type: "string",
+        required: true,
+        description: "The program slug to use-or-discover.",
+      },
+    },
+    returns:
+      "Either `{action: 'use', flow, freshness}` or `{action: 'discover', reason, brief}`.",
+    handler: async (params) => {
+      await data.ensureLoaded();
+      await flows.ensureLoaded();
+      const slug = params.slug as string;
+      const program = data.programs().find((p) => p.slug === slug);
+      if (!program) {
+        return err("NOT_FOUND_RESOURCE", `no program with slug: ${slug}`, { slug });
+      }
+      const flow = getApplicationFlow(program, flows);
+      const fresh = freshness(flow);
+      const curated = flow.confidence === "curated";
+      let flagged = false;
+      if (store) {
+        const health = (await store.get())?.flowHealth?.[slug];
+        flagged = (health?.failure_count ?? 0) >= REDISCOVER_AFTER;
+      }
+
+      // Precedence mirrors get_flow_status (#47 piece B): an uncurated or failing flow needs
+      // fresh discovery; a stale one needs re-verification; otherwise the cached flow is used.
+      const reason = !curated
+        ? "uncurated"
+        : flagged
+          ? "rediscover"
+          : fresh.stale
+            ? "stale"
+            : undefined;
+      if (reason !== undefined) {
+        return ok({
+          slug,
+          action: "discover",
+          reason,
+          brief: buildDiscoveryBrief(program, flows),
+        });
+      }
+      return ok({ slug, action: "use", flow, freshness: fresh });
     },
   });
 }

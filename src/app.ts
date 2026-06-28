@@ -45,8 +45,9 @@ export function buildRouter(
   registerReadOperations(router, data);
   registerFlowOperations(router, data, flows);
   // Flow-discovery toolkit (#47 piece C) — model-free READ ops over data + flows; available on
-  // every deployment (the agent above supplies the model + web).
-  registerFlowDiscoveryOperations(router, data, flows);
+  // every deployment (the agent above supplies the model + web). The optional profile store lets
+  // the entry point also consult per-user flow health (piece B).
+  registerFlowDiscoveryOperations(router, data, flows, options.profileStore);
   if (options.sessionStore) {
     // The pipeline assembles from the maker profile when one is wired (§4); the profile store
     // is optional, so the pipeline still works (without profile fill) without it.
