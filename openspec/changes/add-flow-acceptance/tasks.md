@@ -15,18 +15,18 @@
 
 ## 1. The FlowRegistry seam + the proposal queue (CRUD over proposals)
 
-- [ ] 1.1 `session/flow-registry.ts`: the `Proposal` model (`id`, `kind: "flow"`, `slug`,
+- [x] 1.1 `session/flow-registry.ts`: the `Proposal` model (`id`, `kind: "flow"`, `slug`,
   `candidate`, `attestation?`, `verdict`, `status`, `reason?`, timestamps), the `AcceptanceMode`
   type, the `FlowRegistry` interface, and an `inMemoryFlowRegistry()` impl — runtime-free +
   unit-testable like `session/profile.ts`
-- [ ] 1.2 `operations/flow-acceptance.ts`: `propose_flow` (CREATE) — re-runs piece-C
+- [x] 1.2 `operations/flow-acceptance.ts`: `propose_flow` (CREATE) — re-runs piece-C
   `collectProposalFindings` authoritatively (ignores any caller verdict), stores `pending`;
   `NOT_FOUND_RESOURCE` for an unknown slug
-- [ ] 1.3 `list_proposed_flows` (READ) — proposals + their verdict + the diff vs the served flow;
+- [x] 1.3 `list_proposed_flows` (READ) — proposals + their verdict + the diff vs the served flow;
   filter by status / provider / danger. `update_proposed_flow` (UPDATE, re-verifies) +
   `reject_flow` (DELETE, with reason)
-- [ ] 1.4 `buildRouter` registers the queue ops only when a `FlowRegistry` is wired
-- [ ] 1.5 Tests: a proposal enters pending and lists with its verdict + diff; a caller-claimed
+- [x] 1.4 `buildRouter` registers the queue ops only when a `FlowRegistry` is wired
+- [x] 1.5 Tests: a proposal enters pending and lists with its verdict + diff; a caller-claimed
   "ready" but actually-not-ready candidate stores a not-ready server verdict; revise re-verifies;
   reject records a reason; the ops are absent without a registry
 

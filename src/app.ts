@@ -12,11 +12,13 @@ import { registerProfileOperations } from "./operations/profile.js";
 import { registerVaultOperations } from "./operations/vault.js";
 import { registerFlowHealthOperations } from "./operations/flow-health.js";
 import { registerFlowDiscoveryOperations } from "./operations/flow-discovery.js";
+import { registerFlowAcceptanceOperations } from "./operations/flow-acceptance.js";
 import { DataSource, type DataSourceOptions } from "./data/source.js";
 import { FlowSource } from "./data/flow-source.js";
 import type { SessionStore } from "./session/state.js";
 import type { ProfileStore } from "./session/profile.js";
 import type { VaultCrypto } from "./session/vault.js";
+import type { FlowRegistry } from "./session/flow-registry.js";
 
 export interface AppOptions extends DataSourceOptions {
   /** A flows.json URL or file path for the curated overlay (#47). Unset = the bundled default. */
@@ -27,12 +29,15 @@ export interface AppOptions extends DataSourceOptions {
   profileStore?: ProfileStore;
   /** With a profileStore, registers the encrypted credential vault (needs a key to seal/open). */
   vaultCrypto?: VaultCrypto;
+  /** When present, the shared proposed-flow review queue + acceptance dial is registered (#47 D). */
+  flowRegistry?: FlowRegistry;
 }
 
 interface RouterStores {
   sessionStore?: SessionStore;
   profileStore?: ProfileStore;
   vaultCrypto?: VaultCrypto;
+  flowRegistry?: FlowRegistry;
 }
 
 /** Assemble a router over already-loaded data + flow overlay. EXECUTE/CRUDE ops need a store. */
@@ -48,6 +53,11 @@ export function buildRouter(
   // every deployment (the agent above supplies the model + web). The optional profile store lets
   // the entry point also consult per-user flow health (piece B).
   registerFlowDiscoveryOperations(router, data, flows, options.profileStore);
+  // Flow-acceptance toolkit (#47 piece D) — the shared proposed-flow review queue + acceptance
+  // dial; registered only where a shared FlowRegistry is wired (local + the stateful endpoint).
+  if (options.flowRegistry) {
+    registerFlowAcceptanceOperations(router, data, flows, options.flowRegistry);
+  }
   if (options.sessionStore) {
     // The pipeline assembles from the maker profile when one is wired (§4); the profile store
     // is optional, so the pipeline still works (without profile fill) without it.
@@ -75,11 +85,22 @@ export function buildRouter(
 export async function buildApp(
   options: AppOptions = {},
 ): Promise<{ router: Router; data: DataSource; flows: FlowSource }> {
-  const { flowsSource, sessionStore, profileStore, vaultCrypto, ...dataOptions } =
-    options;
+  const {
+    flowsSource,
+    sessionStore,
+    profileStore,
+    vaultCrypto,
+    flowRegistry,
+    ...dataOptions
+  } = options;
   const data = new DataSource(dataOptions);
   const flows = new FlowSource(flowsSource ? { source: flowsSource } : {});
   await Promise.all([data.ensureLoaded(), flows.ensureLoaded()]);
-  const router = buildRouter(data, flows, { sessionStore, profileStore, vaultCrypto });
+  const router = buildRouter(data, flows, {
+    sessionStore,
+    profileStore,
+    vaultCrypto,
+    flowRegistry,
+  });
   return { router, data, flows };
 }
