@@ -59,6 +59,6 @@
 
 ## 4. Validate + archive
 
-- [ ] 4.1 `openspec validate add-flow-acceptance --strict`; typecheck/lint/both test layers green
-- [ ] 4.2 Archive into `openspec/specs/` (`flow-acceptance` created; the `application-flows` delta
+- [x] 4.1 `openspec validate add-flow-acceptance --strict`; typecheck/lint/both test layers green
+- [x] 4.2 Archive into `openspec/specs/` (`flow-acceptance` created; the `application-flows` delta
   applied); note the #47 arc complete (A–D done)
