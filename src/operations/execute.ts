@@ -265,6 +265,7 @@ export function registerExecuteOperations(
 
       let missing: string[] = [];
       let filledFromProfile: string[] = [];
+      let handoffAvailable = false;
       let did: string;
       switch (execution.stage) {
         case "eligibility":
@@ -287,12 +288,19 @@ export function registerExecuteOperations(
           break;
         }
         case "submission": {
-          const base =
-            flow.automatability === "api"
-              ? `SIMULATED submission to ${flow.submission.action_url ?? "?"} ` +
-                `(method ${flow.submission.method}) with [${Object.keys(mergedInputs).join(", ")}]`
-              : `prepared handoff to ${flow.submission.action_url ?? "?"} ` +
-                `(${flow.automatability}); no in-pipeline submit — see #21`;
+          let base;
+          if (flow.automatability === "api") {
+            base =
+              `SIMULATED submission to ${flow.submission.action_url ?? "?"} ` +
+              `(method ${flow.submission.method}) with [${Object.keys(mergedInputs).join(", ")}]`;
+          } else {
+            // web_only / manual_review: not submitted in-pipeline — prepare a web handoff.
+            handoffAvailable = true;
+            base =
+              `prepared web handoff for ${flow.automatability} provider ` +
+              `${flow.submission.action_url ?? "?"} — call get_handoff for the package ` +
+              `(no in-pipeline submit; hand off to a browser-automation agent)`;
+          }
           did = credentialLabel
             ? `${base}; would inject credential ${credentialLabel} (simulated, not decrypted)`
             : base;
@@ -332,11 +340,14 @@ export function registerExecuteOperations(
         stage: nextStage,
         status,
         did,
-        simulated: true,
+        // A non-API submission is a prepared handoff, not a simulated in-pipeline submission.
+        simulated: !handoffAvailable,
+        ...(handoffAvailable ? { handoff_available: true } : {}),
         missing_inputs: missing,
         filled_from_profile: filledFromProfile,
-        next_step:
-          nextStage === "done"
+        next_step: handoffAvailable
+          ? "call get_handoff for the prepared package, then hand off to a browser-automation agent"
+          : nextStage === "done"
             ? "completed"
             : `call submit_step again to process ${nextStage}`,
       });

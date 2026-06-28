@@ -135,3 +135,36 @@ test("get_handoff returns the package for an execution; unknown execution is NOT
   });
   assert.equal(missing.error.code, "NOT_FOUND_RESOURCE");
 });
+
+// §2: submit_step flags the handoff for non-api flows and stays simulated for api flows.
+async function driveToSubmissionResult(slug) {
+  const { router } = await buildApp({
+    source: FIXTURE,
+    sessionStore: inMemorySessionStore(),
+    profileStore: inMemoryProfileStore(),
+  });
+  await router.dispatch({ operation: "set_autonomy", params: { mode: "full_auto" } });
+  const started = await router.dispatch({
+    operation: "start_application",
+    params: { slug },
+  });
+  const id = started.data.execution_id;
+  await router.dispatch({ operation: "submit_step", params: { execution_id: id } }); // eligibility
+  await router.dispatch({ operation: "submit_step", params: { execution_id: id } }); // assemble
+  return router.dispatch({ operation: "submit_step", params: { execution_id: id } }); // submission
+}
+
+test("submit_step on a non-api (manual_review) flow flags a handoff, not a simulated submit", async () => {
+  const res = await driveToSubmissionResult(ANTHROPIC); // curated manual_review
+  assert.equal(res.data.handoff_available, true);
+  assert.equal(res.data.simulated, false);
+  assert.match(res.data.did, /prepared web handoff/);
+  assert.match(res.data.next_step, /get_handoff/);
+});
+
+test("submit_step on an api flow still returns a simulated submission (no handoff)", async () => {
+  const res = await driveToSubmissionResult("neon/neon-free-tier"); // derived api
+  assert.equal(res.data.simulated, true);
+  assert.equal("handoff_available" in res.data, false);
+  assert.match(res.data.did, /SIMULATED submission/);
+});

@@ -32,11 +32,14 @@
 
 ## 2. `submit_step` web-only integration — #55
 
-- [ ] 2.1 At submission, for `flow.automatability !== "api"`: `did` reads as a prepared web
-  handoff (not a simulated submission), and the response adds `handoff_available: true` +
-  `next_step` → `get_handoff`. `api` flows unchanged
-- [ ] 2.2 Tests: a `web_only` execution's submission response flags the handoff and points to
-  `get_handoff`; the `api` path still returns the simulated-submission result
+- [x] 2.1 At submission, for `flow.automatability !== "api"`: `did` reads as a prepared web
+  handoff (not a simulated submission), `simulated` is `false`, the response adds
+  `handoff_available: true`, and `next_step` → `get_handoff`. `api` flows unchanged (still
+  `simulated: true`)
+- [x] 2.2 Tests (`test/handoff.test.mjs`): a manual_review submission flags the handoff +
+  points to `get_handoff` + `simulated: false`; the api path still returns the simulated
+  submission with no `handoff_available`. Updated the existing execute.test handoff-wording
+  assertions. 118 node:test + 6 vitest green
 
 ## 3. Validate + archive — #56
 

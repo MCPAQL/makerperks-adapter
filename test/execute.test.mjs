@@ -144,8 +144,9 @@ test("a web-only/manual provider yields a prepared handoff (after confirmation)"
     operation: "submit_step",
     params: { execution_id: id, confirmation_token: h.data.confirmation_token },
   });
-  assert.match(sub.data.did, /prepared handoff/);
-  assert.match(sub.data.did, /#21/);
+  assert.match(sub.data.did, /prepared web handoff/);
+  assert.match(sub.data.did, /get_handoff/);
+  assert.equal(sub.data.handoff_available, true);
 });
 
 test("get_status carries flow context", async () => {
@@ -214,7 +215,7 @@ test("resuming with the token proceeds past the gate exactly once", async () => 
     confirmation_token: h.data.confirmation_token,
   });
   assert.equal(resume.data.stage, "verification");
-  assert.match(resume.data.did, /prepared handoff/);
+  assert.match(resume.data.did, /prepared web handoff/);
 });
 
 test("a used token cannot be replayed", async () => {
@@ -325,7 +326,7 @@ test("full_auto runs a danger-2 submission without halting", async () => {
     await driveToSubmission(router, "anthropic/anthropic-startup-program"), // danger 2 → go
   );
   assert.equal(r.data.stage, "verification");
-  assert.match(r.data.did, /prepared handoff/);
+  assert.match(r.data.did, /prepared web handoff/);
 });
 
 // --- #18 §1: autonomy set/get ---
