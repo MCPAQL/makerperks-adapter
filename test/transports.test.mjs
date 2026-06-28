@@ -1,18 +1,31 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { buildApp } from "../dist/app.js";
 import { inMemorySessionStore } from "../dist/session/state.js";
 import { inMemoryProfileStore } from "../dist/session/profile.js";
+import {
+  vaultCrypto,
+  generateVaultKeyBytes,
+  importVaultKey,
+} from "../dist/session/vault.js";
 import { startHttp } from "../dist/transports/http.js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 
 const FIXTURE = "test/fixtures/perks.sample.json";
+// Point the local-mode vault keyfile at a throwaway dir so tests never touch the real ~/.makerperks.
+const VAULT_DIR = mkdtempSync(join(tmpdir(), "mp-vault-"));
 const opsOf = (res) =>
   JSON.parse(res.content[0].text)
     .data.operations.map((o) => o.name)
     .sort();
+
+const testVaultCrypto = async () =>
+  vaultCrypto(await importVaultKey(generateVaultKeyBytes()));
 
 async function viaStdio() {
   const client = new Client({ name: "test", version: "0.0.0" });
@@ -20,7 +33,11 @@ async function viaStdio() {
     new StdioClientTransport({
       command: "node",
       args: ["dist/index.js"],
-      env: { ...process.env, MAKERPERKS_SOURCE: FIXTURE },
+      env: {
+        ...process.env,
+        MAKERPERKS_SOURCE: FIXTURE,
+        MAKERPERKS_VAULT_DIR: VAULT_DIR,
+      },
     }),
   );
   const tools = (await client.listTools()).tools.map((t) => t.name);
@@ -35,12 +52,13 @@ async function viaStdio() {
 }
 
 async function viaHttp(port) {
-  // Match the stdio entry, which wires in-memory session + profile stores (the local
+  // Match the stdio entry, which wires session + profile stores and the vault (the local
   // personal-tool mode), so both transports expose the same READ + CRUDE + EXECUTE surface.
   const { router } = await buildApp({
     source: FIXTURE,
     sessionStore: inMemorySessionStore(),
     profileStore: inMemoryProfileStore(),
+    vaultCrypto: await testVaultCrypto(),
   });
   const handle = await startHttp(router, { port });
   const client = new Client({ name: "test", version: "0.0.0" });
@@ -66,18 +84,19 @@ const LOCAL_TOOLS = [
   "mcp_aql_execute",
 ];
 
-test("stdio: full CRUDE + execute tools, introspect lists 18 ops", async () => {
+test("stdio: full CRUDE + execute tools, introspect lists 21 ops", async () => {
   const { tools, ops } = await viaStdio();
   assert.deepEqual(tools, LOCAL_TOOLS);
-  assert.equal(ops.length, 18);
+  assert.equal(ops.length, 21);
   assert.ok(ops.includes("submit_step") && ops.includes("set_autonomy"));
   assert.ok(ops.includes("create_profile") && ops.includes("get_profile"));
+  assert.ok(ops.includes("add_credential") && ops.includes("list_credentials"));
 });
 
-test("streamable http: full CRUDE + execute tools, introspect lists 18 ops", async () => {
+test("streamable http: full CRUDE + execute tools, introspect lists 21 ops", async () => {
   const { tools, ops } = await viaHttp(38974);
   assert.deepEqual(tools, LOCAL_TOOLS);
-  assert.equal(ops.length, 18);
+  assert.equal(ops.length, 21);
 });
 
 test("transport parity: same operations over stdio and streamable http", async () => {

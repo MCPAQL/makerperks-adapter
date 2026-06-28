@@ -7,6 +7,7 @@
 
 import { ok, err } from "../core/wire.js";
 import type { Router } from "../core/router.js";
+import { appendAudit } from "../session/profile.js";
 import type {
   MakerProfile,
   ProfileIdentity,
@@ -149,7 +150,7 @@ export function registerProfileOperations(router: Router, store: ProfileStore): 
         createdAt: now,
         updatedAt: now,
       };
-      await store.set({ ...record, profile });
+      await store.set(appendAudit({ ...record, profile }, "create_profile"));
       return ok({ profile });
     },
   });
@@ -159,12 +160,24 @@ export function registerProfileOperations(router: Router, store: ProfileStore): 
     semanticCategory: "READ",
     description:
       "Get the maker's own profile (identity + projects). Returns `profile: null` if none " +
-      "exists yet — that is a normal state, not an error.",
-    params: {},
-    returns: "An object with the `profile`, or `profile: null` if none exists.",
-    handler: async () => {
+      "exists yet — that is a normal state, not an error. Pass include_audit to also return " +
+      "the per-user audit log (metadata only — never any secret value).",
+    params: {
+      include_audit: {
+        type: "boolean",
+        required: false,
+        description:
+          "When true, also return the append-only audit log (no secret values).",
+      },
+    },
+    returns:
+      "An object with the `profile` (or null), and `audit` when include_audit is set.",
+    handler: async (params) => {
       const record = await store.get();
-      return ok({ profile: record?.profile ?? null });
+      return ok({
+        profile: record?.profile ?? null,
+        ...(params.include_audit ? { audit: record?.audit ?? [] } : {}),
+      });
     },
   });
 
@@ -194,7 +207,7 @@ export function registerProfileOperations(router: Router, store: ProfileStore): 
         identity: mergeIdentity(found.profile.identity, identity ?? {}),
         updatedAt: Date.now(),
       };
-      await store.set({ ...found.record, profile });
+      await store.set(appendAudit({ ...found.record, profile }, "update_profile"));
       return ok({ profile });
     },
   });
@@ -227,7 +240,9 @@ export function registerProfileOperations(router: Router, store: ProfileStore): 
         projects: [...found.profile.projects, withId],
         updatedAt: Date.now(),
       };
-      await store.set({ ...found.record, profile });
+      await store.set(
+        appendAudit({ ...found.record, profile }, "add_project", withId.name),
+      );
       return ok({ profile, project_id: withId.id });
     },
   });
@@ -258,7 +273,9 @@ export function registerProfileOperations(router: Router, store: ProfileStore): 
         projects: found.profile.projects.filter((p) => p.id !== projectId),
         updatedAt: Date.now(),
       };
-      await store.set({ ...found.record, profile });
+      await store.set(
+        appendAudit({ ...found.record, profile }, "remove_project", projectId),
+      );
       return ok({ profile, removed: projectId });
     },
   });
@@ -274,7 +291,11 @@ export function registerProfileOperations(router: Router, store: ProfileStore): 
     handler: async () => {
       const record = await store.get();
       const existed = Boolean(record?.profile);
-      if (record) await store.set({ ...record, profile: undefined });
+      if (record) {
+        await store.set(
+          appendAudit({ ...record, profile: undefined }, "delete_profile"),
+        );
+      }
       return ok({ deleted: existed });
     },
   });

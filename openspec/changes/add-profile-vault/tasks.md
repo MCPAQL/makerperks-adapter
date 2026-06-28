@@ -33,14 +33,20 @@
 
 ## 2. Credential vault — encrypted, payment-refusing, metadata-only reads + audit log — #50
 
-- [ ] 2.1 `VaultEntry` + `SecretKind` (`scoped_token | password | identity_document`; **no
-  `payment`**); AES-GCM seal/open via Web Crypto (key from `VAULT_KEY` / local keyfile)
-- [ ] 2.2 `add_credential` (CREATE, **rejects `payment`**), `list_credentials` (READ,
-  **metadata only — never ciphertext/plaintext**), `remove_credential` (DELETE)
-- [ ] 2.3 `AuditEntry` + append-only per-user audit; profile/vault mutations and secret-use
-  recorded; `get_profile` `include_audit` returns metadata only
-- [ ] 2.4 Tests: encrypt/decrypt round-trip; payment refused; `list_credentials` never leaks
-  plaintext/ciphertext; audit entries appended
+- [x] 2.1 `VaultEntry` + `SecretKind` (`scoped_token | password | identity_document`; **no
+  `payment`**); AES-GCM seal/open via pure Web Crypto (`session/vault.ts`, Workers-safe). Local
+  key is a generated keyfile under `~/.makerperks/vault.key` (0600 in a 0700 dir;
+  `MAKERPERKS_VAULT_DIR` overrides) loaded by node-only `src/local/vault-key.ts`; hosted
+  `VAULT_KEY` is §3. (`VAULT_KEY`/keyfile decision: Mick, 2026-06-28.)
+- [x] 2.2 `add_credential` (CREATE, **`payment` not in the enum → rejected**), `list_credentials`
+  (READ, **metadata only — never ciphertext/plaintext**), `remove_credential` (DELETE). Registered
+  only when a ProfileStore **and** a VaultCrypto are wired
+- [x] 2.3 `AuditEntry` + append-only per-user audit (capped `AUDIT_CAP`); all profile/vault
+  mutations recorded; `get_profile` `include_audit` returns the log (metadata only). Secret-*use*
+  auditing lands with the pipeline in §4
+- [x] 2.4 Tests (`test/vault.test.mjs`): seal/open round-trip + fresh IV; payment refused +
+  nothing stored; `add_credential`/`list_credentials` never leak plaintext/ciphertext/iv; audit
+  appended (no secret values); keyfile 0600 + persists + reopens. 92 green
 
 ## 3. Hosted per-user Durable Object + OAuth gating — #51
 
