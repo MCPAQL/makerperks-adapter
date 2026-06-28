@@ -285,3 +285,42 @@ test("start_flow_discovery uses an accepted flow instead of re-discovering", asy
   assert.equal(after.data.action, "use");
   assert.equal(after.data.flow.confidence, "curated");
 });
+
+// ── attribution: proposed_by (#73) ───────────────────────────────────────────
+
+const withQueueAs = (proposer) =>
+  buildApp({ source: FIXTURE, flowRegistry: inMemoryFlowRegistry(), proposer });
+
+test("a proposal records the authenticated subject and lists it", async () => {
+  const { router } = await withQueueAs("gh|1001");
+  await d(router, "propose_flow", { slug: SLUG, candidate: ready(0) });
+  const list = await d(router, "list_proposed_flows", {});
+  assert.equal(list.data.proposals[0].proposed_by, "gh|1001");
+});
+
+test("a revised proposal keeps the original proposer", async () => {
+  const { router } = await withQueueAs("gh|1001");
+  const { data: created } = await d(router, "propose_flow", {
+    slug: SLUG,
+    candidate: ready(0),
+  });
+  await d(router, "update_proposed_flow", { id: created.id, candidate: ready(1) });
+  const list = await d(router, "list_proposed_flows", {});
+  assert.equal(list.data.proposals[0].proposed_by, "gh|1001");
+});
+
+test("proposed_by is server-set (no caller param) and absent when unattributed", async () => {
+  const { router } = await withQueue(); // no proposer wired
+  // `proposed_by` is not a declared param — supplying it is rejected as unknown.
+  const spoof = await d(router, "propose_flow", {
+    slug: SLUG,
+    candidate: ready(0),
+    proposed_by: "gh|9999",
+  });
+  assert.equal(spoof.success, false);
+  assert.equal(spoof.error.code, "VALIDATION_UNKNOWN_PARAM");
+  // a normal propose with no proposer wired is simply unattributed
+  await d(router, "propose_flow", { slug: SLUG, candidate: ready(0) });
+  const list = await d(router, "list_proposed_flows", {});
+  assert.equal(list.data.proposals[0].proposed_by, undefined);
+});

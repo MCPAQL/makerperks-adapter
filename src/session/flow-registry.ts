@@ -23,6 +23,8 @@ export interface Proposal {
   provider: string;
   /** The proposed Flow Document (a curated overlay record). */
   candidate: CuratedFlow;
+  /** The authenticated identity (OAuth subject) that created the proposal — server-set (#73). */
+  proposed_by?: string;
   /** The agent's semantic adversarial-refutation result — metadata a human reviews; not trusted. */
   attestation?: string;
   /** The server's OWN re-run of the model-free verify gate (piece C) — authoritative. */

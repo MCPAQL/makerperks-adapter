@@ -31,6 +31,8 @@ export interface AppOptions extends DataSourceOptions {
   vaultCrypto?: VaultCrypto;
   /** When present, the shared proposed-flow review queue + acceptance dial is registered (#47 D). */
   flowRegistry?: FlowRegistry;
+  /** The authenticated subject, stamped onto proposals as `proposed_by` (#73 attribution). */
+  proposer?: string;
 }
 
 interface RouterStores {
@@ -38,6 +40,7 @@ interface RouterStores {
   profileStore?: ProfileStore;
   vaultCrypto?: VaultCrypto;
   flowRegistry?: FlowRegistry;
+  proposer?: string;
 }
 
 /** Assemble a router over already-loaded data + flow overlay. EXECUTE/CRUDE ops need a store. */
@@ -65,7 +68,13 @@ export function buildRouter(
   // Flow-acceptance toolkit (#47 piece D) — the shared proposed-flow review queue + acceptance
   // dial; registered only where a shared FlowRegistry is wired (local + the stateful endpoint).
   if (options.flowRegistry) {
-    registerFlowAcceptanceOperations(router, data, flows, options.flowRegistry);
+    registerFlowAcceptanceOperations(
+      router,
+      data,
+      flows,
+      options.flowRegistry,
+      options.proposer,
+    );
   }
   if (options.sessionStore) {
     // The pipeline assembles from the maker profile when one is wired (§4); the profile store
@@ -100,6 +109,7 @@ export async function buildApp(
     profileStore,
     vaultCrypto,
     flowRegistry,
+    proposer,
     ...dataOptions
   } = options;
   const data = new DataSource(dataOptions);
@@ -110,6 +120,7 @@ export async function buildApp(
     profileStore,
     vaultCrypto,
     flowRegistry,
+    proposer,
   });
   return { router, data, flows };
 }

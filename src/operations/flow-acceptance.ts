@@ -47,6 +47,7 @@ function proposalView(p: Proposal, flows: FlowSource, accepted?: CuratedFlows) {
     id: p.id,
     slug: p.slug,
     provider: p.provider,
+    proposed_by: p.proposed_by,
     status: p.status,
     danger_level: p.danger_level,
     ready_for_proposal: p.verdict.ready_for_proposal,
@@ -64,6 +65,9 @@ export function registerFlowAcceptanceOperations(
   data: DataSource,
   flows: FlowSource,
   registry: FlowRegistry,
+  // The authenticated subject of the session, stamped onto proposals as `proposed_by` (#73). Set
+  // by the server from the session identity — never a caller param. Undefined → unattributed.
+  proposer?: string,
 ): void {
   router.register({
     name: "propose_flow",
@@ -113,6 +117,7 @@ export function registerFlowAcceptanceOperations(
         danger_level: dangerOf(candidate),
         status: "pending",
         proposedAt: Date.now(),
+        ...(proposer !== undefined ? { proposed_by: proposer } : {}),
       };
       if (params.attestation !== undefined) {
         proposal.attestation = params.attestation as string;

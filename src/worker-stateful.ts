@@ -191,6 +191,7 @@ export class MakerPerksMcpAgent extends McpAgent<Env, SessionState, UserProps> {
         profileStore,
         vaultCrypto: vault,
         flowRegistry,
+        proposer: userId, // attribute proposals to the authenticated subject (#73)
       }),
     );
   }
