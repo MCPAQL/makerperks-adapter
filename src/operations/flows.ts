@@ -8,7 +8,7 @@ import { ok, err } from "../core/wire.js";
 import type { Router } from "../core/router.js";
 import type { DataSource } from "../data/source.js";
 import type { FlowSource } from "../data/flow-source.js";
-import { getApplicationFlow, type Automatability } from "../data/flows.js";
+import { getApplicationFlow, freshness, type Automatability } from "../data/flows.js";
 
 const AUTOMATABILITY = ["api", "web_only", "manual_review", "unknown"] as const;
 
@@ -32,7 +32,8 @@ export function registerFlowOperations(
           "The program slug, e.g. deepgram/deepgram-pricing-startup-credits.",
       },
     },
-    returns: "An object with the `flow` record for the program.",
+    returns:
+      "An object with the `flow` record and a `freshness` annotation (verified, stale, age_days).",
     handler: async (params) => {
       await data.ensureLoaded();
       await flows.ensureLoaded();
@@ -41,7 +42,8 @@ export function registerFlowOperations(
       if (!program) {
         return err("NOT_FOUND_RESOURCE", `no program with slug: ${slug}`, { slug });
       }
-      return ok({ flow: getApplicationFlow(program, flows) });
+      const flow = getApplicationFlow(program, flows);
+      return ok({ flow, freshness: freshness(flow) });
     },
   });
 

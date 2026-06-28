@@ -310,3 +310,33 @@ export function getApplicationFlow(
 ): ApplicationFlow {
   return mergeFlow(deriveFlow(program), flows.curatedFor(program.slug));
 }
+
+// Flows go stale 90 days after they were last verified against the provider (#47 piece B). A
+// single default; per-flow / danger-weighted TTLs are a later refinement.
+const STALE_TTL_MS = 90 * 24 * 60 * 60 * 1000;
+
+export interface Freshness {
+  /** The flow's last-verified date, if curated. */
+  verified?: string;
+  /** True only for a curated flow whose `verified` date is older than the TTL. */
+  stale: boolean;
+  /** Age in days since `verified`, or null when there is no (parseable) `verified` date. */
+  age_days: number | null;
+}
+
+/**
+ * Derived freshness for a flow — no stored state. A flow without a `verified` date (a derived
+ * baseline) is never "stale"; it is unverified, which `gaps` already says.
+ */
+export function freshness(flow: ApplicationFlow, now: number = Date.now()): Freshness {
+  const verified = flow.verified;
+  if (!verified) return { stale: false, age_days: null };
+  const verifiedAt = Date.parse(verified);
+  if (Number.isNaN(verifiedAt)) return { verified, stale: false, age_days: null };
+  const ageMs = now - verifiedAt;
+  return {
+    verified,
+    stale: ageMs > STALE_TTL_MS,
+    age_days: Math.floor(ageMs / (24 * 60 * 60 * 1000)),
+  };
+}

@@ -5,6 +5,7 @@ import {
   collectCuratedFlowErrors,
   mergeFlow,
   getApplicationFlow,
+  freshness,
 } from "../dist/data/flows.js";
 import { FlowSource } from "../dist/data/flow-source.js";
 
@@ -186,4 +187,18 @@ test("getApplicationFlow: an unseeded slug returns the derived baseline", () => 
   );
   assert.equal(f.confidence, "derived");
   assert.equal(f.automatability, "web_only");
+});
+
+test("freshness: recent verified is fresh, old is stale, none is not stale", () => {
+  const now = Date.parse("2026-06-28T00:00:00Z");
+  const fresh = freshness({ verified: "2026-06-20" }, now);
+  assert.equal(fresh.stale, false);
+  assert.equal(fresh.age_days, 8);
+
+  const old = freshness({ verified: "2026-01-01" }, now);
+  assert.equal(old.stale, true); // > 90 days
+
+  const none = freshness({}, now); // a derived baseline has no verified date
+  assert.equal(none.stale, false);
+  assert.equal(none.age_days, null);
 });

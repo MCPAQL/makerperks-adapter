@@ -102,3 +102,20 @@ test("get_application_flow reflects a flowsSource override (not the bundled defa
   });
   assert.equal(derived.data.flow.confidence, "derived");
 });
+
+test("get_application_flow carries a freshness annotation (#47 piece B)", async () => {
+  const { router } = await buildApp({ source: "test/fixtures/perks.sample.json" });
+  const res = await router.dispatch({
+    operation: "get_application_flow",
+    params: { slug: "anthropic/anthropic-startup-program" }, // curated, verified 2026-06-27
+  });
+  assert.equal(res.data.freshness.verified, "2026-06-27");
+  assert.equal(typeof res.data.freshness.stale, "boolean");
+  // A derived baseline (neon is api-derived, no curated verified) is not stale.
+  const neon = await router.dispatch({
+    operation: "get_application_flow",
+    params: { slug: "neon/neon-free-tier" },
+  });
+  assert.equal(neon.data.freshness.stale, false);
+  assert.equal(neon.data.freshness.age_days, null);
+});

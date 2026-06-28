@@ -10,17 +10,17 @@
 > `report_flow_outcome` updates per-user health (audited), `get_flow_status` recommends correctly,
 > and the live endpoints stay correct. One commit per section, closing its issue.
 
-## 1. Freshness (derived) + the get_application_flow annotation
+## 1. Freshness (derived) + the get_application_flow annotation — #60
 
-- [ ] 1.1 A `freshness(flow, now?)` helper: `stale = verified && now − verified > TTL`
+- [x] 1.1 `freshness(flow, now?)` in `data/flows.ts`: `stale = verified && now − verified > TTL`
   (TTL = 90 days constant); returns `{ verified, stale, age_days }`; a flow without `verified`
-  is not stale
-- [ ] 1.2 `get_application_flow` returns a `freshness` annotation alongside `flow` (no store
-  needed — available on the live read-only endpoint too)
-- [ ] 1.3 Unit tests: a recently-verified curated flow is fresh; an old `verified` is stale; a
-  derived baseline (no `verified`) is not stale
+  is not stale (age_days null)
+- [x] 1.2 `get_application_flow` returns a `freshness` annotation alongside `flow` (no store —
+  on the live read-only endpoint too)
+- [x] 1.3 Tests: freshness unit (recent fresh / old stale / none not-stale) + an op test that
+  `get_application_flow` carries the annotation. 127 node:test green
 
-## 2. Per-user health: report_flow_outcome + get_flow_status
+## 2. Per-user health: report_flow_outcome + get_flow_status — #61
 
 - [ ] 2.1 `UserRecord.flowHealth[slug]` (`FlowHealth`: last_success_at / last_failure_at /
   failure_count / last_note) in `session/profile.ts`
@@ -33,7 +33,7 @@
   stale-but-healthy flow recommends reverify; a fresh healthy flow recommends use; outcomes are
   audited; the ops are gated on the profile store
 
-## 3. Validate + archive
+## 3. Validate + archive — #62
 
 - [ ] 3.1 `openspec validate add-flow-health --strict`; typecheck/lint/both test layers green
 - [ ] 3.2 Archive into `openspec/specs/` (`flow-health` created; the `application-flows` delta
