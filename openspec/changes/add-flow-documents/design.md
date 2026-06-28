@@ -67,6 +67,30 @@ for our own hosted/local consumption is fine; an **MIT-safe guide extract** for 
 (the human-readable `steps_to_apply` prose only) is a *separate, later* artifact — this change
 does not push the raw structured records into Nate's MIT repo.
 
+### 6. Storage backing: a blob now; the `FlowSource` seam keeps it swappable
+
+`FlowSource` is deliberately an abstraction over *where the overlay lives*, so the storage engine
+is not baked into any consumer. For piece A the backing is a **blob** (`flows.json`, loaded once
+per isolate) — the right call for a **read-mostly, list-heavy** overlay, especially post the
+2026-06-28 KV-overuse incident:
+
+- **`list_application_flows` needs all flows at once.** KV is get-by-key + list-keys only (no
+  query); listing from KV means a maintained index + N reads — most of the blob's work anyway.
+  In-memory blob filtering is trivial.
+- **Per-request KV reads are the exact pattern that bit us** (the reconnect-loop read flood). A
+  KV-per-slug overlay would put flow lookups back on that hot path unless cached in-isolate — at
+  which point it has re-derived the blob's in-memory model, piecemeal and eventually-consistent.
+- The blob mirrors the proven `perks.json` (`DataSource`) pattern: zero per-request external
+  reads after the first load.
+
+Granular per-key storage earns its keep only once we **write** individual documents — pieces
+B/C/D (health updates, discovered flows, acceptance). And there the better engine is likely **D1
+or a Durable-Object-backed registry, not KV**: piece B must *query* "which flows are stale /
+failing", which KV cannot do, while D1 (SQL) and DO storage (strongly consistent, transactional —
+unlike KV's eventual consistency) can. That decision is deferred to **piece B**, made against B's
+real query patterns; because consumers only touch `FlowSource`, swapping the backing then changes
+nothing above it.
+
 ## Out of scope (tracked — the rest of #47)
 
 Freshness/health + `report_flow_outcome` (piece B); the research→generate→verify discovery
