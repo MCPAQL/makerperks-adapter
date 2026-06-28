@@ -52,15 +52,18 @@
   the optional `ProfileStore` for health)
 - [x] 3.4 Tests: a fresh flow → `use`; an uncurated/stale flow → `discover` + brief; a spike scored
   against itself ≈ top of range; a degraded candidate scores lower
-- [ ] 3.5 Manual demo (DoD, not CI): a connected MCP agent regenerates the 3 spikes to acceptable
-  fidelity and discovers one never-seen perk end to end (brief → research → verify → diff).
-  **Pending a live MCP-client run** — the toolkit is model-agnostic by design, so this runs with a
-  connected agent (Claude Desktop / a Dollhouse ensemble / etc.), not in CI.
+- [x] 3.5 Manual demo (DoD, not CI): driven 2026-06-28 by an agent against the live toolkit —
+  discovered a never-seen perk end to end (`assemblyai/assemblyai-startup-program`:
+  `start_flow_discovery` → brief → web research → candidate → `verify` `ready_for_proposal: true`,
+  eligibility surfaced in `gaps`); regenerated the 3 spikes at fidelity 1.00 / 0.82 / 1.00 (all
+  pass the gates; the anthropic 0.82 flagged a real apply-URL discrepancy for review). Spike runs
+  were sighted (overlays seen in-session), so they validate the gates/scorer/schema; the AssemblyAI
+  run is the uncontaminated capability demo.
 
 ## 4. Validate + archive
 
 - [x] 4.1 Reframe #63 to the model-agnostic, server-toolkit architecture (the "pin a Claude model"
   language only applies if Claude happens to be the driving client); note the arc status on #47
 - [x] 4.2 `openspec validate add-flow-discovery --strict`; typecheck/lint/both test layers green
-- [ ] 4.3 Archive into `openspec/specs/` (`flow-discovery` created) — **after the §3.5 live demo
-  confirms acceptable spike fidelity** (the whole-change DoD requires the demonstrated regeneration)
+- [x] 4.3 Archive into `openspec/specs/` (`flow-discovery` created) — the §3.5 live demo confirmed
+  acceptable spike fidelity
