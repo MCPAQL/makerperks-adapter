@@ -12,7 +12,7 @@
 > before (now from `flows.json`), the worker fetches `FLOWS_URL` with a bundled fallback, and the
 > live endpoints stay correct. One commit per section, closing its issue.
 
-## 1. Flow Document model + `flows.json` + `FlowSource` loader
+## 1. Flow Document model + `flows.json` + `FlowSource` loader — #57
 
 - [ ] 1.1 Define the Flow Document shape (today's `CuratedFlow` + additive `sources[]`); the
   `flows.json` collection format (map slug → document); migrate the 3 curated spikes from
@@ -23,7 +23,7 @@
 - [ ] 1.3 Unit tests: loads + validates `flows.json`; the 3 spikes merge identically to before;
   a schema-invalid `flows.json` fails loud; `FLOWS_URL` override + bundled fallback both work
 
-## 2. Wire `getApplicationFlow` to the loaded overlay
+## 2. Wire `getApplicationFlow` to the loaded overlay — #58
 
 - [ ] 2.1 `getApplicationFlow(program, flows)` uses `flows.curatedFor(slug)` (same `mergeFlow`);
   remove the bundled `provider-flows.ts` constant import path
@@ -33,7 +33,7 @@
 - [ ] 2.3 Tests: flow ops + pipeline + handoff return identical results sourced from `flows.json`;
   transport/op surface unchanged; both worker entries build
 
-## 3. Validate + archive
+## 3. Validate + archive — #59
 
 - [ ] 3.1 `openspec validate add-flow-documents --strict`; typecheck/lint/both test layers green
 - [ ] 3.2 Archive into `openspec/specs/` (`flow-documents` created; the `application-flows`
