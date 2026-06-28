@@ -11,23 +11,26 @@
 > to it for non-`api` flows, `api` flows unchanged, and the live endpoints stay correct. One
 > commit per section, closing its issue.
 
-## 1. Handoff package builder + `get_handoff` op
+## 1. Handoff package builder + `get_handoff` op — #54
 
-- [ ] 1.1 A pure `buildHandoff(flow, execution, profile?)` that splits the flow's
-  `required_inputs` into `assembled_inputs` (non-secret, value known) vs `pending_inputs`
-  (missing or `source: "credential"`, with a `reason` and no value), and assembles the package
-  (action_url / method / instructions / danger / confidence / gaps / eligibility_notice)
-- [ ] 1.2 `eligibility_notice` surfaces (does not decide) eligibility: for `manual_review` /
-  danger ≥ 2 it states the maker asserts it (neither auto-asserted nor auto-denied), neutral for
-  self-serve. No hard lock — the package is always returned and proceeding is never refused on
-  eligibility grounds
-- [ ] 1.3 `get_handoff(execution_id)` EXECUTE op (read-only): NOT_FOUND for an unknown execution;
-  returns the package built from the execution + maker profile + program flow
-- [ ] 1.4 Unit tests: `web_only` (gcp) package has assembled profile inputs + pending credential
-  field with **no secret**; `manual_review` carries the eligibility notice; an `api` flow either
-  reports nothing-to-hand-off or a trivially-empty pending set; unknown execution → NOT_FOUND
+- [x] 1.1 Pure `buildHandoff(flow, execution, profile?)` (`src/operations/handoff.ts`, with the
+  shared `profileInputs` projection) splits `required_inputs` into `assembled_inputs` (non-secret,
+  value known) vs `pending_inputs` (missing or `source: "credential"`, with a `reason` and **no
+  value**), and assembles the package (action_url / method / instructions / danger / confidence /
+  gaps / eligibility_notice)
+- [x] 1.2 `eligibility_notice` surfaces (does not decide): for `manual_review` / danger ≥ 2 it
+  states eligibility is the maker's (neither auto-asserted nor auto-denied, "you may proceed"),
+  neutral for self-serve. No hard lock — the package is always returned
+- [x] 1.3 `get_handoff(execution_id)` EXECUTE op (read-only, in `execute.ts`): NOT_FOUND for an
+  unknown execution / missing program; builds the package from the execution + maker profile +
+  program flow
+- [x] 1.4 Tests (`test/handoff.test.mjs`): profile fields assemble + a credential field stays
+  pending with no value + out-of-band note; per-call inputs override; gated flow surfaces
+  eligibility without blocking; api flow gets a neutral notice; `get_handoff` over the curated
+  manual_review flow + unknown execution → NOT_FOUND. 116 node:test + 6 vitest green
+  (`transports.test` op count 21 → 22)
 
-## 2. `submit_step` web-only integration
+## 2. `submit_step` web-only integration — #55
 
 - [ ] 2.1 At submission, for `flow.automatability !== "api"`: `did` reads as a prepared web
   handoff (not a simulated submission), and the response adds `handoff_available: true` +
@@ -35,7 +38,7 @@
 - [ ] 2.2 Tests: a `web_only` execution's submission response flags the handoff and points to
   `get_handoff`; the `api` path still returns the simulated-submission result
 
-## 3. Validate + archive
+## 3. Validate + archive — #56
 
 - [ ] 3.1 `openspec validate add-web-handoff --strict`; typecheck/lint/both test layers green
 - [ ] 3.2 Archive into `openspec/specs/` (`web-handoff` created; the `application-pipeline`

@@ -19,24 +19,8 @@ import type {
   SessionStore,
 } from "../session/state.js";
 import { appendAudit } from "../session/profile.js";
-import type { MakerProfile, ProfileStore, UserRecord } from "../session/profile.js";
-
-// Project the maker profile (#19/#34) into candidate application inputs. Only fields the
-// profile actually holds are surfaced; per-call inputs always override these (§4). Keys match
-// the flow's `source: "profile"` required_inputs (full_name / email / region / country).
-function profileInputs(profile?: MakerProfile): Record<string, unknown> {
-  if (!profile) return {};
-  const id = profile.identity;
-  const out: Record<string, unknown> = {};
-  if (id.name) {
-    out.full_name = id.name;
-    out.name = id.name;
-  }
-  if (id.email) out.email = id.email;
-  if (id.location?.region) out.region = id.location.region;
-  if (id.location?.country) out.country = id.location.country;
-  return out;
-}
+import type { ProfileStore, UserRecord } from "../session/profile.js";
+import { buildHandoff, profileInputs } from "./handoff.js";
 
 // The simulated lifecycle: each submit_step processes the current stage and advances one.
 const NEXT_STAGE: Record<Exclude<ExecutionStage, "done">, ExecutionStage> = {
@@ -400,6 +384,48 @@ export function registerExecuteOperations(
             ? "completed"
             : `call submit_step to process ${execution.stage}`,
       });
+    },
+  });
+
+  // Web-only / manual-review handoff (#21): prepare a structured package an EXTERNAL
+  // browser-automation agent can act on. Read-only — the adapter never drives a browser; it
+  // assembles from the profile, marks credential fields pending (no secret), and surfaces
+  // eligibility without deciding it.
+  router.register({
+    name: "get_handoff",
+    semanticCategory: "EXECUTE",
+    description:
+      "Prepare a structured web handoff package for an execution (especially web_only / " +
+      "manual_review perks): the apply URL, instructions, assembled vs pending inputs (no " +
+      "secrets — credential fields stay pending for out-of-band supply), danger level, gaps, " +
+      "and an eligibility notice. For an external browser-automation agent; the adapter never " +
+      "drives a browser. Read-only.",
+    params: {
+      execution_id: {
+        type: "string",
+        required: true,
+        description: "The id returned by start_application.",
+      },
+    },
+    returns: "An object with the `handoff` package.",
+    handler: async (params) => {
+      await data.ensureLoaded();
+      const executionId = params.execution_id as string;
+      const execution = store.get().executions[executionId];
+      if (!execution) {
+        return err("NOT_FOUND_RESOURCE", `no execution: ${executionId}`, {
+          execution_id: executionId,
+        });
+      }
+      const program = data.programs().find((p) => p.slug === execution.slug);
+      if (!program) {
+        return err("NOT_FOUND_RESOURCE", `program gone: ${execution.slug}`, {
+          slug: execution.slug,
+        });
+      }
+      const flow = getApplicationFlow(program);
+      const userRecord = profileStore ? await profileStore.get() : undefined;
+      return ok({ handoff: buildHandoff(flow, execution, userRecord?.profile) });
     },
   });
 

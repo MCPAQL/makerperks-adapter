@@ -84,19 +84,19 @@ const LOCAL_TOOLS = [
   "mcp_aql_execute",
 ];
 
-test("stdio: full CRUDE + execute tools, introspect lists 21 ops", async () => {
+test("stdio: full CRUDE + execute tools, introspect lists 22 ops", async () => {
   const { tools, ops } = await viaStdio();
   assert.deepEqual(tools, LOCAL_TOOLS);
-  assert.equal(ops.length, 21);
+  assert.equal(ops.length, 22);
   assert.ok(ops.includes("submit_step") && ops.includes("set_autonomy"));
   assert.ok(ops.includes("create_profile") && ops.includes("get_profile"));
   assert.ok(ops.includes("add_credential") && ops.includes("list_credentials"));
 });
 
-test("streamable http: full CRUDE + execute tools, introspect lists 21 ops", async () => {
+test("streamable http: full CRUDE + execute tools, introspect lists 22 ops", async () => {
   const { tools, ops } = await viaHttp(38974);
   assert.deepEqual(tools, LOCAL_TOOLS);
-  assert.equal(ops.length, 21);
+  assert.equal(ops.length, 22);
 });
 
 test("transport parity: same operations over stdio and streamable http", async () => {
