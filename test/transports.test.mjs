@@ -104,3 +104,45 @@ test("transport parity: same operations over stdio and streamable http", async (
   const h = await viaHttp(38975);
   assert.deepEqual(s.ops, h.ops);
 });
+
+test("http transport: wrong path 404s; a non-initialize POST without a session 400s", async () => {
+  const { router } = await buildApp({
+    source: FIXTURE,
+    sessionStore: inMemorySessionStore(),
+  });
+  const handle = await startHttp(router, { port: 38976 });
+  try {
+    const notFound = await fetch(`http://127.0.0.1:38976/wrong`);
+    assert.equal(notFound.status, 404);
+
+    const badSession = await fetch(`http://127.0.0.1:38976/mcp`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }),
+    });
+    assert.equal(badSession.status, 400);
+    const body = await badSession.json();
+    assert.match(body.error.message, /no valid session/i);
+  } finally {
+    await handle.close();
+  }
+});
+
+test("mcp server: an unknown tool name returns a NOT_FOUND_OPERATION error envelope", async () => {
+  const { router } = await buildApp({
+    source: FIXTURE,
+    sessionStore: inMemorySessionStore(),
+  });
+  const handle = await startHttp(router, { port: 38977 });
+  const client = new Client({ name: "test", version: "0.0.0" });
+  await client.connect(new StreamableHTTPClientTransport(new URL(handle.url)));
+  try {
+    const res = await client.callTool({ name: "mcp_aql_bogus", arguments: {} });
+    assert.equal(res.isError, true);
+    const payload = JSON.parse(res.content[0].text);
+    assert.equal(payload.error.code, "NOT_FOUND_OPERATION");
+  } finally {
+    await client.close();
+    await handle.close();
+  }
+});
