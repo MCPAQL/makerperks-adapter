@@ -84,6 +84,7 @@
 
 ## 5. Validate + archive — #53
 
-- [ ] 5.1 `openspec validate add-profile-vault --strict`; typecheck/build/lint/tests green
-- [ ] 5.2 Archive into `openspec/specs/` (`maker-profile`, `credential-vault`, and the
-  `application-pipeline` delta)
+- [x] 5.1 `openspec validate add-profile-vault --strict`; typecheck/build/lint/tests green
+  (111 node:test + 6 vitest)
+- [x] 5.2 Archived into `openspec/specs/` (`maker-profile`, `credential-vault` created; the
+  `application-pipeline` delta applied)

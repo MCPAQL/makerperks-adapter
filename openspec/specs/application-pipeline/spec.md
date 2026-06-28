@@ -13,6 +13,14 @@ The adapter SHALL expose an `EXECUTE` operation family — `start_application`,
 as simulated. The operations SHALL be reachable via a `mcp_aql_execute` tool and SHALL be
 listed by `introspect`; the existing `mcp_aql_read` READ surface SHALL be unchanged.
 
+When a maker profile is available, the `assemble` stage SHALL fill the flow's
+`required_inputs` from the profile, with any per-call `inputs` taking precedence, so that
+`missing_inputs` reflects only what the profile genuinely lacks. The `submission` stage MAY
+reference a stored vault credential by id; such use SHALL be **simulated** (the result names
+the credential's label, never its value), SHALL be gated by the autonomy switch and a
+confirmation token, and SHALL be recorded in the per-user audit log. Eligibility SHALL still
+never be auto-asserted.
+
 #### Scenario: Drive an application to completion
 
 - **WHEN** an agent calls `start_application` for a program and then `submit_step` through
@@ -29,6 +37,23 @@ listed by `introspect`; the existing `mcp_aql_read` READ surface SHALL be unchan
 
 - **WHEN** `get_status` or `submit_step` is called with an unknown execution id
 - **THEN** it returns a `NOT_FOUND_RESOURCE` error
+
+#### Scenario: Assemble fills inputs from the profile
+
+- **WHEN** a profile exists and `submit_step` reaches the `assemble` stage without supplying a
+  field the profile already holds
+- **THEN** that field is filled from the profile and `missing_inputs` does not list it
+
+#### Scenario: Per-call inputs override the profile
+
+- **WHEN** a per-call `inputs` value conflicts with a profile value at `assemble`
+- **THEN** the per-call value is used
+
+#### Scenario: A referenced vault secret is simulated, gated, and audited
+
+- **WHEN** `submit_step` at `submission` references a vault credential by id
+- **THEN** the use halts for confirmation under the autonomy mode, the simulated result names
+  the credential's label but not its value, and an audit entry is recorded
 
 ### Requirement: Batch-with-halting via session-scoped confirmation tokens
 
