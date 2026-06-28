@@ -43,6 +43,7 @@
 
 ## 3. Validate + archive — #59
 
-- [ ] 3.1 `openspec validate add-flow-documents --strict`; typecheck/lint/both test layers green
-- [ ] 3.2 Archive into `openspec/specs/` (`flow-documents` created; the `application-flows`
+- [x] 3.1 `openspec validate add-flow-documents --strict`; typecheck/lint/both test layers green
+  (125 node:test + 6 vitest; both worker bundles dry-run-build)
+- [x] 3.2 Archive into `openspec/specs/` (`flow-documents` created; the `application-flows`
   delta applied)
