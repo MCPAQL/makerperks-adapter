@@ -48,12 +48,14 @@
 
 ## 3. Hosted wiring — the registry Durable Object
 
-- [ ] 3.1 A single named registry Durable Object backing the `FlowRegistry` on the stateful worker
-  (atomic accept = move pending→accepted + publish in one DO txn); `buildRouter`/worker wiring
-- [ ] 3.2 A workers/vitest test proving the shared registry's consistency (a proposal accepted via
-  the DO is served on a subsequent read) using the minimal `wrangler.test.jsonc` harness
-- [ ] 3.3 Confirm the read-only worker registers no acceptance ops and serves committed `flows.json`
-  unchanged
+- [x] 3.1 A single named registry Durable Object backing the `FlowRegistry` on the stateful worker
+  (atomic accept = move pending→accepted + publish in one DO method/input-gate); `buildRouter`/worker
+  wiring (`REGISTRY_OBJECT` binding + migration in wrangler.dev.jsonc)
+- [x] 3.2 A workers/vitest test proving the shared registry's consistency (an accept via the DO is
+  published + visible on a fresh stub to the same named instance) using the `wrangler.test.jsonc`
+  harness (`FlowRegistryDO` registered alongside `MakerProfileDO`)
+- [x] 3.3 Confirm the read-only worker registers no acceptance ops and serves committed `flows.json`
+  unchanged (it never imports/wires the registry)
 
 ## 4. Validate + archive
 

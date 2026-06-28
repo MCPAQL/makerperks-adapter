@@ -32,9 +32,12 @@ import {
   type VaultCrypto,
 } from "./session/vault.js";
 import { MakerProfileDO } from "./durable-profile.js";
+import { FlowRegistryDO } from "./durable-registry.js";
 import { deriveDoName } from "./auth/do-name.js";
-// Re-exported so wrangler can bind the DO class (class_name "MakerProfileDO") from this entry.
+import type { FlowRegistry } from "./session/flow-registry.js";
+// Re-exported so wrangler can bind the DO classes from this entry.
 export { MakerProfileDO } from "./durable-profile.js";
+export { FlowRegistryDO } from "./durable-registry.js";
 import {
   decodeAuthState,
   encodeAuthState,
@@ -54,6 +57,8 @@ interface Env {
   MCP_OBJECT: DurableObjectNamespace;
   // Per-USER profile/vault store (#51). One DO per user via idFromName(userId).
   PROFILE_OBJECT: DurableObjectNamespace<MakerProfileDO>;
+  // SHARED proposed-flow registry (#47 piece D). A SINGLE named instance for the whole deployment.
+  REGISTRY_OBJECT: DurableObjectNamespace<FlowRegistryDO>;
   PERKS_URL?: string;
   /** A flows.json URL for the curated overlay (#47); unset = the bundled default. */
   FLOWS_URL?: string;
@@ -165,11 +170,27 @@ export class MakerPerksMcpAgent extends McpAgent<Env, SessionState, UserProps> {
       }
     }
 
+    // The SHARED proposed-flow registry (#47 piece D) — one named DO for the whole deployment, so
+    // the review queue + accepted overlay are operator-shared (not per-user). The serving ops then
+    // serve accepted flows live. (Operator-only gating of accept is a tracked follow-up.)
+    const regNs = this.env.REGISTRY_OBJECT;
+    const reg = regNs.get(regNs.idFromName("flow-registry"));
+    const flowRegistry: FlowRegistry = {
+      mode: () => reg.getMode(),
+      setMode: (mode) => reg.setMode(mode),
+      put: (proposal) => reg.putProposal(proposal),
+      get: (id) => reg.getProposal(id),
+      list: (filter) => reg.listProposals(filter),
+      decide: (id, status, reason) => reg.decide(id, status, reason),
+      accepted: () => reg.getAccepted(),
+    };
+
     this.server = createMcpServer(
       buildRouter(data, flows, {
         sessionStore: store,
         profileStore,
         vaultCrypto: vault,
+        flowRegistry,
       }),
     );
   }

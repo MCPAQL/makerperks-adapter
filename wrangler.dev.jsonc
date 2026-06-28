@@ -22,11 +22,14 @@
     "bindings": [
       { "name": "MCP_OBJECT", "class_name": "MakerPerksMcpAgent" },
       { "name": "PROFILE_OBJECT", "class_name": "MakerProfileDO" },
+      // SHARED proposed-flow registry — one named instance for the whole deployment (#47 piece D).
+      { "name": "REGISTRY_OBJECT", "class_name": "FlowRegistryDO" },
     ],
   },
   "migrations": [
     { "tag": "v1", "new_sqlite_classes": ["MakerPerksMcpAgent"] },
     { "tag": "v2", "new_sqlite_classes": ["MakerProfileDO"] },
+    { "tag": "v3", "new_sqlite_classes": ["FlowRegistryDO"] },
   ],
   // Per-IP rate-limit backstop (mirrors the live worker). 100 requests / 10s per IP.
   "ratelimits": [

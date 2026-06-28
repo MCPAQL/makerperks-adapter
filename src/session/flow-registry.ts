@@ -43,6 +43,20 @@ export interface ProposalFilter {
   minDanger?: number;
 }
 
+/** Filter + sort (oldest-first) a proposal list — shared by the in-memory impl and the DO (§3). */
+export function applyProposalFilter(
+  proposals: Proposal[],
+  filter?: ProposalFilter,
+): Proposal[] {
+  let out = proposals;
+  if (filter?.status) out = out.filter((p) => p.status === filter.status);
+  if (filter?.provider) out = out.filter((p) => p.provider === filter.provider);
+  if (filter?.minDanger !== undefined) {
+    out = out.filter((p) => p.danger_level >= filter.minDanger!);
+  }
+  return [...out].sort((a, b) => a.proposedAt - b.proposedAt);
+}
+
 /**
  * The shared registry: the proposal queue, the accepted overlay, and the acceptance-mode dial.
  * One per deployment (operator-scoped). The hosted impl is a single named Durable Object (§3); the
@@ -83,14 +97,7 @@ export function inMemoryFlowRegistry(): FlowRegistry {
       proposals.set(p.id, p);
     },
     get: async (id) => proposals.get(id),
-    list: async (f) => {
-      let out = [...proposals.values()];
-      if (f?.status) out = out.filter((p) => p.status === f.status);
-      if (f?.provider) out = out.filter((p) => p.provider === f.provider);
-      if (f?.minDanger !== undefined)
-        out = out.filter((p) => p.danger_level >= f.minDanger!);
-      return out.sort((a, b) => a.proposedAt - b.proposedAt);
-    },
+    list: async (f) => applyProposalFilter([...proposals.values()], f),
     decide: async (id, status, reason) => {
       const p = proposals.get(id);
       if (!p) throw new Error(`no proposal: ${id}`);
