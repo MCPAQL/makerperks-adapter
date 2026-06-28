@@ -47,5 +47,5 @@
 
 ## 4. Validate + archive
 
-- [ ] 4.1 `openspec validate add-directory-status --strict`; typecheck/lint/both test layers green
-- [ ] 4.2 Archive into `openspec/specs/` (`directory-status` created)
+- [x] 4.1 `openspec validate add-directory-status --strict`; typecheck/lint/both test layers green
+- [x] 4.2 Archive into `openspec/specs/` (`directory-status` created)
