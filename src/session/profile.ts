@@ -77,13 +77,26 @@ export interface AuditEntry {
 export const AUDIT_CAP = 1000;
 
 /**
- * Everything stored for one user: the maker profile (#49), the encrypted credential vault, and
- * the append-only audit log (#50). All optional so a record can exist with only some populated.
+ * Per-user health for one flow (#47 piece B): the outcome of this user's attempts. `failure_count`
+ * is CONSECUTIVE (reset to 0 on a success), so a flow that works again is trusted again.
+ */
+export interface FlowHealth {
+  last_success_at?: number;
+  last_failure_at?: number;
+  failure_count: number;
+  last_note?: string;
+}
+
+/**
+ * Everything stored for one user: the maker profile (#49), the encrypted credential vault, the
+ * append-only audit log (#50), and per-flow health keyed by slug (#47 piece B). All optional so a
+ * record can exist with only some populated.
  */
 export interface UserRecord {
   profile?: MakerProfile;
   vault?: VaultEntry[];
   audit?: AuditEntry[];
+  flowHealth?: Record<string, FlowHealth>;
 }
 
 /** Append an audit entry to a record (bounded to the newest AUDIT_CAP), returning a new record. */

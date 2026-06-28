@@ -10,6 +10,7 @@ import { registerFlowOperations } from "./operations/flows.js";
 import { registerExecuteOperations } from "./operations/execute.js";
 import { registerProfileOperations } from "./operations/profile.js";
 import { registerVaultOperations } from "./operations/vault.js";
+import { registerFlowHealthOperations } from "./operations/flow-health.js";
 import { DataSource, type DataSourceOptions } from "./data/source.js";
 import { FlowSource } from "./data/flow-source.js";
 import type { SessionStore } from "./session/state.js";
@@ -55,6 +56,8 @@ export function buildRouter(
   }
   if (options.profileStore) {
     registerProfileOperations(router, options.profileStore);
+    // Per-user flow health (#47 piece B) — needs the flow overlay + the per-user store.
+    registerFlowHealthOperations(router, data, flows, options.profileStore);
     // The vault needs both a per-user store and a key to seal/open; register only with both.
     if (options.vaultCrypto) {
       registerVaultOperations(router, options.profileStore, options.vaultCrypto);

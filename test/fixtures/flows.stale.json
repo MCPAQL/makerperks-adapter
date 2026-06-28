@@ -1,0 +1,14 @@
+{
+  "neon/neon-free-tier": {
+    "automatability": "web_only",
+    "submission": { "method": "web_form", "action_url": "https://stale.example/apply" },
+    "required_inputs": [
+      { "key": "email", "type": "email", "required": true, "source": "profile" }
+    ],
+    "redemption": { "type": "manual_review" },
+    "danger_level": 1,
+    "gaps": ["stale fixture — verified long ago"],
+    "source": "https://stale.example/apply",
+    "verified": "2020-01-01"
+  }
+}

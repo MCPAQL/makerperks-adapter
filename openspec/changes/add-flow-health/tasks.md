@@ -22,16 +22,17 @@
 
 ## 2. Per-user health: report_flow_outcome + get_flow_status — #61
 
-- [ ] 2.1 `UserRecord.flowHealth[slug]` (`FlowHealth`: last_success_at / last_failure_at /
+- [x] 2.1 `UserRecord.flowHealth[slug]` + `FlowHealth` (last_success_at / last_failure_at /
   failure_count / last_note) in `session/profile.ts`
-- [ ] 2.2 `report_flow_outcome(slug, outcome, note?)` EXECUTE op: success clears the streak,
-  failure increments it; `failure_count >= REDISCOVER_AFTER` (2) flags it; appends an audit
-  entry. Needs the per-user store
-- [ ] 2.3 `get_flow_status(slug)` READ op: freshness + per-user health + `recommendation`
-  (rediscover → reverify → use). Registered with the per-user store (alongside #2.2)
-- [ ] 2.4 Tests: a failure then a success resets the streak; two failures flag rediscover; a
-  stale-but-healthy flow recommends reverify; a fresh healthy flow recommends use; outcomes are
-  audited; the ops are gated on the profile store
+- [x] 2.2 `report_flow_outcome(slug, outcome, note?)` EXECUTE op (`operations/flow-health.ts`):
+  success clears the streak, failure increments; `failure_count >= REDISCOVER_AFTER` (2) flags
+  it; unknown slug → NOT_FOUND; appends an audit entry
+- [x] 2.3 `get_flow_status(slug)` READ op: freshness + per-user health + `recommendation`
+  (rediscover → reverify → use); both ops register in `app.ts` only with the profile store
+- [x] 2.4 Tests (`test/flow-health.test.mjs`): failure-then-success resets; two failures flag +
+  recommend rediscover; fresh+healthy → use; stale (2020 fixture) +healthy → reverify; unknown
+  slug NOT_FOUND; audited; gated on the profile store. transports op count 22 → 24. 134
+  node:test + 6 vitest green
 
 ## 3. Validate + archive — #62
 
