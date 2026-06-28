@@ -21,6 +21,11 @@ the credential's label, never its value), SHALL be gated by the autonomy switch 
 confirmation token, and SHALL be recorded in the per-user audit log. Eligibility SHALL still
 never be auto-asserted.
 
+For a flow whose `automatability` is **not** `api` (`web_only` / `manual_review`), the
+`submission` stage SHALL NOT claim a simulated submission; instead it SHALL report that a web
+handoff is available and point to the `get_handoff` operation, which prepares a structured
+handoff package for an external browser-automation agent. The adapter SHALL NOT drive a browser.
+
 #### Scenario: Drive an application to completion
 
 - **WHEN** an agent calls `start_application` for a program and then `submit_step` through
@@ -38,22 +43,11 @@ never be auto-asserted.
 - **WHEN** `get_status` or `submit_step` is called with an unknown execution id
 - **THEN** it returns a `NOT_FOUND_RESOURCE` error
 
-#### Scenario: Assemble fills inputs from the profile
+#### Scenario: A non-API submission points to a web handoff
 
-- **WHEN** a profile exists and `submit_step` reaches the `assemble` stage without supplying a
-  field the profile already holds
-- **THEN** that field is filled from the profile and `missing_inputs` does not list it
-
-#### Scenario: Per-call inputs override the profile
-
-- **WHEN** a per-call `inputs` value conflicts with a profile value at `assemble`
-- **THEN** the per-call value is used
-
-#### Scenario: A referenced vault secret is simulated, gated, and audited
-
-- **WHEN** `submit_step` at `submission` references a vault credential by id
-- **THEN** the use halts for confirmation under the autonomy mode, the simulated result names
-  the credential's label but not its value, and an audit entry is recorded
+- **WHEN** `submit_step` reaches the `submission` stage for a `web_only` or `manual_review` flow
+- **THEN** the result does not claim a simulated submission, flags that a handoff is available,
+  and directs the agent to `get_handoff` for the prepared package
 
 ### Requirement: Batch-with-halting via session-scoped confirmation tokens
 

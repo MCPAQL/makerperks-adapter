@@ -43,6 +43,7 @@
 
 ## 3. Validate + archive — #56
 
-- [ ] 3.1 `openspec validate add-web-handoff --strict`; typecheck/lint/both test layers green
-- [ ] 3.2 Archive into `openspec/specs/` (`web-handoff` created; the `application-pipeline`
+- [x] 3.1 `openspec validate add-web-handoff --strict`; typecheck/lint/both test layers green
+  (118 node:test + 6 vitest)
+- [x] 3.2 Archive into `openspec/specs/` (`web-handoff` created; the `application-pipeline`
   delta applied)
