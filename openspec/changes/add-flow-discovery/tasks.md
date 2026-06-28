@@ -15,15 +15,15 @@
 
 ## 1. Discovery brief + the Flow Document contract descriptor
 
-- [ ] 1.1 Export a `curatedFlowContract()` descriptor (field names + allowed enums) from
+- [x] 1.1 Export a `curatedFlowContract()` descriptor (field names + allowed enums) from
   `data/flows.ts`, sourced from the same constants `collectCuratedFlowErrors` enforces (one
   source of truth)
-- [ ] 1.2 `buildDiscoveryBrief(program, flows)` in a new `data/discovery.ts`: program record +
+- [x] 1.2 `buildDiscoveryBrief(program, flows)` in a new `data/discovery.ts`: program record +
   derived baseline + its `gaps` + the target contract + the verification contract (provenance,
   eligibility-surfaced, adversarial checklist)
-- [ ] 1.3 `get_discovery_brief(slug)` READ op (needs `data` + `flows`); `NOT_FOUND_RESOURCE` for an
+- [x] 1.3 `get_discovery_brief(slug)` READ op (needs `data` + `flows`); `NOT_FOUND_RESOURCE` for an
   unknown slug
-- [ ] 1.4 Tests: a brief for a known slug carries baseline + gaps + contract; the target contract's
+- [x] 1.4 Tests: a brief for a known slug carries baseline + gaps + contract; the target contract's
   enums match what the validator enforces; unknown slug errors
 
 ## 2. Model-free verification + diff

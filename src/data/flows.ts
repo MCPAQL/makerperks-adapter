@@ -103,6 +103,50 @@ const INPUT_SOURCES: readonly string[] = [
 ];
 const INPUT_TYPES: readonly string[] = ["string", "number", "boolean", "email", "url"];
 
+/**
+ * A machine-readable descriptor of the curated-overlay contract: the overlay fields an authored
+ * Flow Document may set, and the allowed values per constrained field. Drawn from the SAME
+ * constants `collectCuratedFlowErrors` enforces, so the discovery brief (#47 piece C) never
+ * promises a shape the validator would reject — one source of truth, no drift. Identity
+ * (`slug`/`provider`/`title`) and `confidence` are never authored (they come from perks.json /
+ * the overlay's existence), so they are not in `fields`.
+ */
+export interface CuratedFlowContract {
+  fields: readonly string[];
+  enums: {
+    automatability: readonly string[];
+    submission_method: readonly string[];
+    redemption_type: readonly string[];
+    input_source: readonly string[];
+    input_type: readonly string[];
+    danger_level: readonly number[];
+  };
+}
+
+export function curatedFlowContract(): CuratedFlowContract {
+  return {
+    fields: [
+      "automatability",
+      "required_inputs",
+      "submission",
+      "redemption",
+      "danger_level",
+      "gaps",
+      "source",
+      "sources",
+      "verified",
+    ],
+    enums: {
+      automatability: AUTOMATABILITY,
+      submission_method: SUBMISSION_METHODS,
+      redemption_type: REDEMPTION_TYPES,
+      input_source: INPUT_SOURCES,
+      input_type: INPUT_TYPES,
+      danger_level: [0, 1, 2, 3, 4],
+    },
+  };
+}
+
 function isObject(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && !Array.isArray(v);
 }

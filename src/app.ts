@@ -11,6 +11,7 @@ import { registerExecuteOperations } from "./operations/execute.js";
 import { registerProfileOperations } from "./operations/profile.js";
 import { registerVaultOperations } from "./operations/vault.js";
 import { registerFlowHealthOperations } from "./operations/flow-health.js";
+import { registerFlowDiscoveryOperations } from "./operations/flow-discovery.js";
 import { DataSource, type DataSourceOptions } from "./data/source.js";
 import { FlowSource } from "./data/flow-source.js";
 import type { SessionStore } from "./session/state.js";
@@ -43,6 +44,9 @@ export function buildRouter(
   const router = new Router();
   registerReadOperations(router, data);
   registerFlowOperations(router, data, flows);
+  // Flow-discovery toolkit (#47 piece C) — model-free READ ops over data + flows; available on
+  // every deployment (the agent above supplies the model + web).
+  registerFlowDiscoveryOperations(router, data, flows);
   if (options.sessionStore) {
     // The pipeline assembles from the maker profile when one is wired (§4); the profile store
     // is optional, so the pipeline still works (without profile fill) without it.
