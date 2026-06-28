@@ -41,4 +41,10 @@ TypeScript · Node 20+ · `@modelcontextprotocol/sdk` (both `StdioServerTranspor
   `npm run spec -- <args>`.
 - This is **backend/data/agent work** — the makerperks `impeccable` UI rule does not
   apply here.
+- **Testing is two layers, both run by `npm test`:** the transport-agnostic core via
+  `node:test` (`test/*.test.mjs`, against `dist/`), and the Workers/Durable-Object edge via
+  `@cloudflare/vitest-pool-workers` (`test/workers/*.test.ts`, real workerd — proves per-user
+  DO isolation). The workers harness uses `wrangler.test.jsonc` (a minimal config registering
+  only `MakerProfileDO`, so it never loads the MCP-SDK-heavy worker). `npm run test:unit` /
+  `test:workers` run one layer; `test:coverage` reports core coverage.
 - Conventional commits. Dependency versions pinned exact (`.npmrc` `save-exact=true`).

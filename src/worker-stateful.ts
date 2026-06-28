@@ -31,6 +31,7 @@ import {
   type VaultCrypto,
 } from "./session/vault.js";
 import { MakerProfileDO } from "./durable-profile.js";
+import { deriveDoName } from "./auth/do-name.js";
 // Re-exported so wrangler can bind the DO class (class_name "MakerProfileDO") from this entry.
 export { MakerProfileDO } from "./durable-profile.js";
 import {
@@ -132,7 +133,10 @@ export class MakerPerksMcpAgent extends McpAgent<Env, SessionState, UserProps> {
     let vault: VaultCrypto | undefined;
     if (userId) {
       const ns = this.env.PROFILE_OBJECT;
-      const stub = ns.get(ns.idFromName(userId));
+      // deriveDoName is the one place subject -> DO name happens; it throws on an empty
+      // subject (the guard is unreachable here thanks to `if (userId)`, but keeps the
+      // derivation honest and unit-testable — see test/workers/isolation.test.ts).
+      const stub = ns.get(ns.idFromName(deriveDoName(userId)));
       profileStore = {
         get: () => stub.getRecord(),
         set: (record: UserRecord) => stub.setRecord(record),

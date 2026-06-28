@@ -60,8 +60,11 @@
 - [x] 3.3 Deployed to `makerperks-dev.mcpaql.com` (`VAULT_KEY` secret set, `v2` DO migration
   applied, both DOs bound). Verified from Claude Desktop: surface present, profile create/read/
   add_project, **persistence across reconnect** (the per-user DO), vault metadata-only,
-  payment refused, audit (no secret values). **Per-user isolation is structural (one DO per
-  `userId`) but not yet automated** — moved to the test-harness work (see below).
+  payment refused, audit (no secret values). Per-user isolation now has **automated coverage**:
+  a workerd-runtime harness (`@cloudflare/vitest-pool-workers`, `test/workers/isolation.test.ts`)
+  proves it against a real `MakerProfileDO` — the `deriveDoName` derivation (injective, stable,
+  refuses an empty subject) + behavioural cross-read (A's writes invisible to B; vault isolated;
+  secrets never leak). `npm test` runs both layers (node:test core + vitest workers).
 
 ## 4. Pipeline integration (assemble from profile; gated, audited secret-use) — #52
 

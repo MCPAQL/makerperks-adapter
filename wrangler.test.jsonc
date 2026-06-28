@@ -1,0 +1,15 @@
+{
+  // Test-only Worker config for the vitest-pool-workers harness (test/workers/*). It registers
+  // ONLY the per-user MakerProfileDO so the isolation tests get a real Durable Object in
+  // workerd, without loading the MCP-SDK-heavy stateful worker. Not deployed — `npm run
+  // deploy:dev` uses wrangler.dev.jsonc. See vitest.config.ts.
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "makerperks-adapter-test",
+  "main": "test/workers/test-worker.ts",
+  "compatibility_date": "2026-06-03",
+  "compatibility_flags": ["nodejs_compat"],
+  "durable_objects": {
+    "bindings": [{ "name": "PROFILE_OBJECT", "class_name": "MakerProfileDO" }],
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["MakerProfileDO"] }],
+}

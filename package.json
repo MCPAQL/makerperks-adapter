@@ -12,14 +12,18 @@
     "start": "node dist/index.js",
     "deploy": "npm run build && WRANGLER_SEND_METRICS=false wrangler deploy",
     "deploy:dev": "npm run build && WRANGLER_SEND_METRICS=false wrangler deploy -c wrangler.dev.jsonc",
-    "test": "npm run build && node --test",
+    "test": "npm run build && npm run test:unit && npm run test:workers",
     "lint": "eslint . && prettier --check .",
     "format": "prettier --write .",
     "spec": "OPENSPEC_TELEMETRY=0 openspec",
     "spec:list": "OPENSPEC_TELEMETRY=0 openspec list",
-    "spec:validate": "OPENSPEC_TELEMETRY=0 openspec validate"
+    "spec:validate": "OPENSPEC_TELEMETRY=0 openspec validate",
+    "test:unit": "node --test test/*.test.mjs",
+    "test:workers": "vitest run",
+    "test:coverage": "npm run build && node --test --experimental-test-coverage test/*.test.mjs"
   },
   "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "0.16.20",
     "@cloudflare/workers-types": "4.20260626.1",
     "@eslint/js": "10.0.1",
     "@fission-ai/openspec": "1.4.1",
@@ -29,6 +33,7 @@
     "prettier": "3.8.5",
     "typescript": "6.0.3",
     "typescript-eslint": "8.62.0",
+    "vitest": "4.1.9",
     "wrangler": "4.105.0"
   },
   "dependencies": {
