@@ -4,7 +4,9 @@
 
 import { err, type AqlRequest, type Result } from "./wire.js";
 
-export type SemanticCategory = "READ" | "EXECUTE"; // CREATE/UPDATE/DELETE later (#34–#36).
+// CRUDE semantic categories. CREATE/UPDATE/DELETE realize the maker-profile entity (#34);
+// each maps to its own `mcp_aql_*` tool, exposed only when an op of that category exists.
+export type SemanticCategory = "CREATE" | "READ" | "UPDATE" | "DELETE" | "EXECUTE";
 
 export type ParamType = "string" | "number" | "boolean" | "string[]" | "object";
 

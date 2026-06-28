@@ -3,17 +3,20 @@
 
 import { buildApp } from "./app.js";
 import { inMemorySessionStore } from "./session/state.js";
+import { inMemoryProfileStore } from "./session/profile.js";
 import { startStdio } from "./transports/stdio.js";
 import { startHttp } from "./transports/http.js";
 
 async function main(): Promise<void> {
   const useHttp = process.argv.includes("--transport=http");
   const source = process.env.MAKERPERKS_SOURCE;
-  // A local single-process session gets an in-memory store — the EXECUTE pipeline runs
-  // entirely on-device (the local personal-tool mode).
+  // A local single-process session gets in-memory stores — the EXECUTE pipeline and the
+  // CRUDE maker profile (#34) run entirely on-device (the local personal-tool mode); the
+  // profile never leaves the machine.
   const { router } = await buildApp({
     ...(source ? { source } : {}),
     sessionStore: inMemorySessionStore(),
+    profileStore: inMemoryProfileStore(),
   });
 
   if (useHttp) {

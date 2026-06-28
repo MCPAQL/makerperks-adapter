@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { buildApp } from "../dist/app.js";
 import { inMemorySessionStore } from "../dist/session/state.js";
+import { inMemoryProfileStore } from "../dist/session/profile.js";
 import { startHttp } from "../dist/transports/http.js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
@@ -34,11 +35,12 @@ async function viaStdio() {
 }
 
 async function viaHttp(port) {
-  // Match the stdio entry, which wires an in-memory store (the local personal-tool mode),
-  // so both transports expose the same READ + EXECUTE surface.
+  // Match the stdio entry, which wires in-memory session + profile stores (the local
+  // personal-tool mode), so both transports expose the same READ + CRUDE + EXECUTE surface.
   const { router } = await buildApp({
     source: FIXTURE,
     sessionStore: inMemorySessionStore(),
+    profileStore: inMemoryProfileStore(),
   });
   const handle = await startHttp(router, { port });
   const client = new Client({ name: "test", version: "0.0.0" });
@@ -55,17 +57,27 @@ async function viaHttp(port) {
   return { tools, ops };
 }
 
-test("stdio: read + execute tools, introspect lists 12 ops", async () => {
+// Local mode wires session + profile stores, so the full CRUDE + EXECUTE surface is present.
+const LOCAL_TOOLS = [
+  "mcp_aql_read",
+  "mcp_aql_create",
+  "mcp_aql_update",
+  "mcp_aql_delete",
+  "mcp_aql_execute",
+];
+
+test("stdio: full CRUDE + execute tools, introspect lists 18 ops", async () => {
   const { tools, ops } = await viaStdio();
-  assert.deepEqual(tools, ["mcp_aql_read", "mcp_aql_execute"]);
-  assert.equal(ops.length, 12);
+  assert.deepEqual(tools, LOCAL_TOOLS);
+  assert.equal(ops.length, 18);
   assert.ok(ops.includes("submit_step") && ops.includes("set_autonomy"));
+  assert.ok(ops.includes("create_profile") && ops.includes("get_profile"));
 });
 
-test("streamable http: read + execute tools, introspect lists 12 ops", async () => {
+test("streamable http: full CRUDE + execute tools, introspect lists 18 ops", async () => {
   const { tools, ops } = await viaHttp(38974);
-  assert.deepEqual(tools, ["mcp_aql_read", "mcp_aql_execute"]);
-  assert.equal(ops.length, 12);
+  assert.deepEqual(tools, LOCAL_TOOLS);
+  assert.equal(ops.length, 18);
 });
 
 test("transport parity: same operations over stdio and streamable http", async () => {

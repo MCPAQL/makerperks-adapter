@@ -8,24 +8,33 @@ import { registerIntrospect } from "./core/introspect.js";
 import { registerReadOperations } from "./operations/read.js";
 import { registerFlowOperations } from "./operations/flows.js";
 import { registerExecuteOperations } from "./operations/execute.js";
+import { registerProfileOperations } from "./operations/profile.js";
 import { DataSource, type DataSourceOptions } from "./data/source.js";
 import type { SessionStore } from "./session/state.js";
+import type { ProfileStore } from "./session/profile.js";
 
 export interface AppOptions extends DataSourceOptions {
   /** When present, the EXECUTE pipeline is registered, bound to this session's store. */
   sessionStore?: SessionStore;
+  /** When present, the CRUDE maker-profile surface is registered, bound to this user's store. */
+  profileStore?: ProfileStore;
 }
 
-/** Assemble a router over already-loaded data. EXECUTE ops register only with a store. */
-export function buildRouter(
-  data: DataSource,
-  options: { sessionStore?: SessionStore } = {},
-): Router {
+interface RouterStores {
+  sessionStore?: SessionStore;
+  profileStore?: ProfileStore;
+}
+
+/** Assemble a router over already-loaded data. EXECUTE/CRUDE ops register only with a store. */
+export function buildRouter(data: DataSource, options: RouterStores = {}): Router {
   const router = new Router();
   registerReadOperations(router, data);
   registerFlowOperations(router, data);
   if (options.sessionStore) {
     registerExecuteOperations(router, data, options.sessionStore);
+  }
+  if (options.profileStore) {
+    registerProfileOperations(router, options.profileStore);
   }
   registerIntrospect(router);
   return router;
@@ -34,9 +43,9 @@ export function buildRouter(
 export async function buildApp(
   options: AppOptions = {},
 ): Promise<{ router: Router; data: DataSource }> {
-  const { sessionStore, ...dataOptions } = options;
+  const { sessionStore, profileStore, ...dataOptions } = options;
   const data = new DataSource(dataOptions);
   await data.ensureLoaded();
-  const router = buildRouter(data, { sessionStore });
+  const router = buildRouter(data, { sessionStore, profileStore });
   return { router, data };
 }
