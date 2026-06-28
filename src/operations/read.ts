@@ -6,8 +6,26 @@ import Fuse from "fuse.js";
 import { ok, err } from "../core/wire.js";
 import type { Router } from "../core/router.js";
 import type { DataSource, PerkProgram } from "../data/source.js";
+import type { ProfileStore } from "../session/profile.js";
+import { statusEntryFor } from "../data/status.js";
 
-export function registerReadOperations(router: Router, data: DataSource): void {
+export function registerReadOperations(
+  router: Router,
+  data: DataSource,
+  // When a per-user store is wired, listings honor that user's status policy (#36 add-directory-
+  // status): programs whose status is configured `exclude` are omitted unless `include_inactive`.
+  // No store (the read-only endpoint) → the DEFAULT policy excludes nothing.
+  store?: ProfileStore,
+): void {
+  // Drop programs whose status is `exclude` in the session's policy, unless include_inactive.
+  const applyStatusExclusion = async (
+    programs: PerkProgram[],
+    includeInactive: boolean,
+  ): Promise<PerkProgram[]> => {
+    if (includeInactive || !store) return programs;
+    const stored = (await store.get())?.statusPolicy;
+    return programs.filter((p) => statusEntryFor(p, stored).listing !== "exclude");
+  };
   router.register({
     name: "list_programs",
     semanticCategory: "READ",
@@ -45,6 +63,12 @@ export function registerReadOperations(router: Router, data: DataSource): void {
         required: false,
         description: "Only programs whose max_value is at least this.",
       },
+      include_inactive: {
+        type: "boolean",
+        required: false,
+        description:
+          "Include programs whose status your policy excludes (e.g. Discontinued). Default false.",
+      },
       limit: {
         type: "number",
         required: false,
@@ -71,6 +95,7 @@ export function registerReadOperations(router: Router, data: DataSource): void {
       if (status) results = results.filter((p) => p.status === status);
       if (minValue !== undefined)
         results = results.filter((p) => p.max_value >= minValue);
+      results = await applyStatusExclusion(results, params.include_inactive === true);
       if (limit !== undefined) results = results.slice(0, limit);
 
       return ok({ count: results.length, programs: results });
@@ -107,6 +132,12 @@ export function registerReadOperations(router: Router, data: DataSource): void {
       "Fuzzy full-text search across programs (title, provider, tags, slug).",
     params: {
       query: { type: "string", required: true, description: "Free-text query." },
+      include_inactive: {
+        type: "boolean",
+        required: false,
+        description:
+          "Include programs whose status your policy excludes (e.g. Discontinued). Default false.",
+      },
       limit: {
         type: "number",
         required: false,
@@ -118,7 +149,11 @@ export function registerReadOperations(router: Router, data: DataSource): void {
       await data.ensureLoaded();
       const query = params.query as string;
       const limit = (params.limit as number | undefined) ?? 20;
-      const fuse = new Fuse(data.programs(), {
+      const pool = await applyStatusExclusion(
+        data.programs(),
+        params.include_inactive === true,
+      );
+      const fuse = new Fuse(pool, {
         threshold: 0.4,
         ignoreLocation: true,
         keys: [

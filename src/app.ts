@@ -51,10 +51,18 @@ export function buildRouter(
   options: RouterStores = {},
 ): Router {
   const router = new Router();
-  registerReadOperations(router, data);
+  // The listing ops honor the per-user status policy when a profile store is wired (#36); absent it
+  // (the read-only endpoint) the DEFAULT policy excludes nothing.
+  registerReadOperations(router, data, options.profileStore);
   // The flow-serving ops consult the accepted overlay when a registry is wired (#47 piece D), so
   // accepted flows are served live; absent it, serving is unchanged.
-  registerFlowOperations(router, data, flows, options.flowRegistry);
+  registerFlowOperations(
+    router,
+    data,
+    flows,
+    options.flowRegistry,
+    options.profileStore,
+  );
   // Flow-discovery toolkit (#47 piece C) — model-free READ ops over data + flows; available on
   // every deployment (the agent above supplies the model + web). The optional profile store lets
   // the entry point also consult per-user flow health (piece B); the optional registry lets it

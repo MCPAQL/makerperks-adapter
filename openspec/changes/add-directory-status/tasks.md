@@ -30,10 +30,11 @@
 
 ## 2. Listings honor `exclude`
 
-- [ ] 2.1 `list_programs` / `search_programs` / `list_application_flows` omit `listing: exclude`
-  programs unless `include_inactive: true`
-- [ ] 2.2 Tests: with `Discontinued → exclude`, the listings omit them; `include_inactive` includes
-  them; the default policy returns the prior set unchanged
+- [x] 2.1 `list_programs` / `search_programs` / `list_application_flows` omit `listing: exclude`
+  programs unless `include_inactive: true` (the per-user policy threaded via the `ProfileStore`; no
+  store → DEFAULT excludes nothing)
+- [x] 2.2 Tests (a Discontinued fixture): with `Discontinued → exclude`, the three listings omit it;
+  `include_inactive` includes it; the default policy + no-store return the full set
 
 ## 3. Proposals honor `flag` / `block`
 

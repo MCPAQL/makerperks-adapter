@@ -1,0 +1,29 @@
+{
+  "name": "status-test",
+  "programs": [
+    {
+      "slug": "acme/active-perk",
+      "title": "Active Perk",
+      "provider": "acme",
+      "url": "https://acme.example.com/",
+      "audience": ["startup"],
+      "max_value": 1000,
+      "sources": [],
+      "verified": "2026-06-28",
+      "value_type": "free_tier",
+      "status": "Active"
+    },
+    {
+      "slug": "defunct/gone-perk",
+      "title": "Gone Perk",
+      "provider": "defunct",
+      "url": "https://defunct.example.com/",
+      "audience": ["startup"],
+      "max_value": 1000,
+      "sources": [],
+      "verified": "2026-06-28",
+      "value_type": "credits",
+      "status": "Discontinued"
+    }
+  ]
+}

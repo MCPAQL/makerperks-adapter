@@ -10,6 +10,8 @@ import type { DataSource } from "../data/source.js";
 import type { FlowSource } from "../data/flow-source.js";
 import { getApplicationFlow, freshness, type Automatability } from "../data/flows.js";
 import type { FlowRegistry } from "../session/flow-registry.js";
+import type { ProfileStore } from "../session/profile.js";
+import { effectiveStatusPolicy } from "../data/status.js";
 
 const AUTOMATABILITY = ["api", "web_only", "manual_review", "unknown"] as const;
 
@@ -20,6 +22,9 @@ export function registerFlowOperations(
   // When a registry is wired (#47 piece D), accepted flows override the flows.json overlay in the
   // served result; absent it, serving is unchanged.
   registry?: FlowRegistry,
+  // When a per-user store is wired (#36 add-directory-status), list_application_flows honors that
+  // user's status policy (excluded statuses omitted unless include_inactive).
+  store?: ProfileStore,
 ): void {
   router.register({
     name: "get_application_flow",
@@ -66,6 +71,12 @@ export function registerFlowOperations(
         enum: AUTOMATABILITY,
         description: "Filter by automatability.",
       },
+      include_inactive: {
+        type: "boolean",
+        required: false,
+        description:
+          "Include flows whose program status your policy excludes (e.g. Discontinued). Default false.",
+      },
       limit: {
         type: "number",
         required: false,
@@ -85,6 +96,10 @@ export function registerFlowOperations(
       let merged = data.programs().map((p) => getApplicationFlow(p, flows, accepted));
       if (automatability) {
         merged = merged.filter((f) => f.automatability === automatability);
+      }
+      if (params.include_inactive !== true && store) {
+        const policy = effectiveStatusPolicy((await store.get())?.statusPolicy);
+        merged = merged.filter((f) => policy[f.status].listing !== "exclude");
       }
       const summaries = merged.map((f) => ({
         slug: f.slug,

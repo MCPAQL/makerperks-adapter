@@ -83,3 +83,62 @@ test("set_status_policy rejects invalid status / listing / proposal", async () =
     "VALIDATION_INVALID_TYPE",
   );
 });
+
+// ── §2: listings honor exclude ───────────────────────────────────────────────
+
+const STATUS_FIXTURE = "test/fixtures/perks.status.json";
+
+const excludeDiscontinued = async () => {
+  const app = await buildApp({
+    source: STATUS_FIXTURE,
+    profileStore: inMemoryProfileStore(),
+  });
+  await d(app.router, "set_status_policy", {
+    status: "Discontinued",
+    listing: "exclude",
+  });
+  return app.router;
+};
+
+test("list_programs omits an excluded status, include_inactive brings it back", async () => {
+  const router = await excludeDiscontinued();
+  const def = await d(router, "list_programs", {});
+  assert.deepEqual(
+    def.data.programs.map((p) => p.slug),
+    ["acme/active-perk"],
+  );
+  const all = await d(router, "list_programs", { include_inactive: true });
+  assert.equal(all.data.count, 2);
+});
+
+test("search_programs honors the exclusion too", async () => {
+  const router = await excludeDiscontinued();
+  const hit = await d(router, "search_programs", { query: "perk" });
+  assert.ok(!hit.data.programs.some((p) => p.slug === "defunct/gone-perk"));
+  const all = await d(router, "search_programs", {
+    query: "perk",
+    include_inactive: true,
+  });
+  assert.ok(all.data.programs.some((p) => p.slug === "defunct/gone-perk"));
+});
+
+test("list_application_flows honors the exclusion", async () => {
+  const router = await excludeDiscontinued();
+  const def = await d(router, "list_application_flows", {});
+  assert.ok(!def.data.flows.some((f) => f.slug === "defunct/gone-perk"));
+  const all = await d(router, "list_application_flows", { include_inactive: true });
+  assert.ok(all.data.flows.some((f) => f.slug === "defunct/gone-perk"));
+});
+
+test("the default policy excludes nothing (listings unchanged)", async () => {
+  const { router } = await buildApp({
+    source: STATUS_FIXTURE,
+    profileStore: inMemoryProfileStore(),
+  });
+  assert.equal((await d(router, "list_programs", {})).data.count, 2);
+});
+
+test("with no store wired, nothing is excluded", async () => {
+  const { router } = await buildApp({ source: STATUS_FIXTURE });
+  assert.equal((await d(router, "list_programs", {})).data.count, 2);
+});
