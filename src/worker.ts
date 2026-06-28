@@ -11,9 +11,15 @@ import { buildApp } from "./app.js";
 import { createMcpServer } from "./mcp.js";
 import type { Router } from "./core/router.js";
 
+// Cloudflare Workers Rate Limiting binding (per-IP backstop against abuse / runaway clients).
+interface RateLimit {
+  limit(options: { key: string }): Promise<{ success: boolean }>;
+}
+
 interface Env {
   OAUTH_KV: KVNamespace;
   PERKS_URL?: string;
+  MCP_RATE_LIMITER: RateLimit;
 }
 
 // --- MCP API handler (the OAuth-protected resource) ---
@@ -94,6 +100,19 @@ const oauthProvider = new OAuthProvider<Env>(oauthOptions);
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
+
+    // Per-IP rate limit — the belt-and-suspenders backstop against abuse, a runaway client,
+    // or a traffic spike. Runs first, before OAuth/KV, so a blocked request costs nothing
+    // downstream. Generous (100 req / 10s per IP) — far above any real MCP client.
+    const ip = request.headers.get("cf-connecting-ip") ?? "unknown";
+    const { success } = await env.MCP_RATE_LIMITER.limit({ key: ip });
+    if (!success) {
+      return new Response("Too Many Requests", {
+        status: 429,
+        headers: { "retry-after": "10", "content-type": "text/plain" },
+      });
+    }
+
     if (request.method === "GET" && url.pathname === "/") {
       return new Response(
         "Method Not Allowed — this MCP endpoint is POST-only (no SSE stream).",
