@@ -18,9 +18,10 @@ The adapter SHALL apply program status through a configurable `StatusPolicy` tha
 to a `listing` (`include` | `exclude`) and a `proposal` (`allow` | `flag` | `block`) setting. The
 **default** policy SHALL be surface/flag only — `Active` is `{include, allow}` and `Discontinued`,
 `Beta`, and `Upcoming` are each `{include, flag}` — so out of the box no program is hidden or
-blocked. The policy SHALL be readable via `get_status_policy` and changeable via
-`set_status_policy` where an operator surface is wired; where none is (the anonymous read-only
-endpoint), the default policy SHALL apply.
+blocked. The policy is **per user** (a personal view/preference, unlike the shared accepted flows):
+it SHALL be readable via `get_status_policy` and changeable via `set_status_policy` against the
+per-user store (`UserRecord.statusPolicy`), registered where a per-user store is wired. Where there
+is no authenticated user (the anonymous read-only endpoint), the default policy SHALL apply.
 
 #### Scenario: The default policy hides and blocks nothing
 
@@ -28,10 +29,12 @@ endpoint), the default policy SHALL apply.
 - **THEN** every status is `listing: include`, `Active` is `proposal: allow`, and the others are
   `proposal: flag`
 
-#### Scenario: An operator can tighten a status
+#### Scenario: A user can tighten a status for themselves
 
-- **WHEN** `set_status_policy` sets `Discontinued` to `{listing: exclude, proposal: block}`
-- **THEN** `get_status_policy` reflects it, and subsequent listings + proposals honor it
+- **WHEN** a user calls `set_status_policy` setting `Discontinued` to `{listing: exclude, proposal:
+  block}`
+- **THEN** their `get_status_policy` reflects it, and that user's subsequent listings + proposals
+  honor it
 
 #### Scenario: An invalid policy value is rejected
 

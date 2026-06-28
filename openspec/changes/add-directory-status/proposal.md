@@ -16,9 +16,12 @@ hardcoded policy. It needs **operator-configurable knobs**.
   `proposal: allow | flag | block`. **Default = surface/flag only:** `Active {include, allow}`;
   `Discontinued` / `Beta` / `Upcoming` → `{include, flag}`. So out of the box nothing is hidden or
   blocked — a non-`Active` perk is merely surfaced + flagged, and the agent decides.
-- **Knobs.** `get_status_policy` / `set_status_policy(status, listing?, proposal?)` let an operator
-  flip, say, `Discontinued → {exclude, block}` as a directory ages — without redeploy. Where no
-  operator surface is wired (the anonymous read-only worker), the **defaults** apply.
+- **Knobs (per user).** The policy is a **per-user preference** — how *you* view the directory by
+  status is personal, unlike the shared accepted flows. `get_status_policy` /
+  `set_status_policy(status, listing?, proposal?)` read/write the user's own policy (stored with
+  their profile, `UserRecord.statusPolicy`), so a user can flip, say, `Discontinued → {exclude,
+  block}` for themselves — without redeploy. No user / anonymous (the read-only worker) → the
+  **defaults**.
 - **Listings honor `exclude`.** `list_programs` / `search_programs` / `list_application_flows` omit
   status-`exclude` programs, with an opt-in `include_inactive` param to include them. (Default
   excludes nothing, so default listing behavior is unchanged.)
@@ -42,8 +45,9 @@ hardcoded policy. It needs **operator-configurable knobs**.
 - **Affected code:** a `StatusPolicy` model + defaults + an eval-free policy applier
   (`data/status.ts`); `status` surfaced via `getApplicationFlow` / `buildDiscoveryBrief` / the list
   summaries; the listing ops gain `include_inactive` + the exclusion filter; `propose_flow` /
-  `verify_flow_proposal` apply the gate; `get_status_policy` / `set_status_policy` ops; the policy
-  stored as operator state (see the design's open decision on storage).
+  `verify_flow_proposal` apply the gate; `get_status_policy` / `set_status_policy` ops on the
+  per-user `ProfileStore` (`UserRecord.statusPolicy`); the listing/proposal ops resolve the
+  session's per-user policy (defaults when there is no user).
 - **Non-goals / tracked follow-up:** drift detection + retire / the `service` maintenance pipeline
   (#36, of which this is a first slice); a publisher-supplied policy embedded in the feed itself;
   per-status TTLs.

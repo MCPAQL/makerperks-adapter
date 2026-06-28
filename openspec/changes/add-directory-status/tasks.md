@@ -11,8 +11,8 @@
 > can flip a status to exclude/block and listings + proposals honor it. One commit per section,
 > closing its issue; push on `main`.
 >
-> **Confirm before §1:** the storage decision in design.md §3 (runtime-op-in-registry (a) /
-> env-config (b) / both (c) — recommended (c)).
+> **Storage (decided 2026-06-28):** the policy is **per-user** — stored in the existing
+> `ProfileStore` (`UserRecord.statusPolicy`); anonymous / read-only → `DEFAULT`. See design.md §3.
 
 ## 1. Status model + surfacing + the policy knobs
 
@@ -20,10 +20,11 @@
   only), and a pure helper to resolve a program's status (default `Active`) + its policy entry
 - [ ] 1.2 Surface `status` on `get_application_flow`, `get_discovery_brief`, and the
   `list_application_flows` summaries
-- [ ] 1.3 `get_status_policy` / `set_status_policy(status, listing?, proposal?)` ops against the
-  store chosen per design §3; invalid `listing`/`proposal` → a validation error
+- [ ] 1.3 `UserRecord.statusPolicy` + `get_status_policy` / `set_status_policy(status, listing?,
+  proposal?)` ops on the per-user `ProfileStore` (registered with the profile surface); invalid
+  `listing`/`proposal` → a validation error
 - [ ] 1.4 Tests: status is surfaced (default `Active`); the default policy excludes/blocks nothing;
-  set/get round-trips; an invalid value is rejected
+  set/get round-trips per-user; an invalid value is rejected
 
 ## 2. Listings honor `exclude`
 
