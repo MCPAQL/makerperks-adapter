@@ -3,7 +3,11 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { buildApp } from "../dist/app.js";
 import { curatedFlowContract, collectCuratedFlowErrors } from "../dist/data/flows.js";
-import { buildDiscoveryBrief } from "../dist/data/discovery.js";
+import {
+  buildDiscoveryBrief,
+  collectProposalFindings,
+  diffFlow,
+} from "../dist/data/discovery.js";
 import { FlowSource } from "../dist/data/flow-source.js";
 
 const FIXTURE = "test/fixtures/perks.sample.json";
@@ -80,4 +84,90 @@ test("the brief carries the current (possibly curated) flow for re-discovery con
   const b = buildDiscoveryBrief(program, flows);
   assert.equal(b.current.confidence, "curated");
   assert.equal(b.baseline.confidence, "derived");
+});
+
+// ── §2: model-free verify + diff ─────────────────────────────────────────────
+
+test("verify_flow_proposal + diff_flow_proposal are introspectable READ ops", async () => {
+  const { router } = await buildApp({ source: FIXTURE });
+  const ops = (await d(router, "introspect")).data.operations;
+  for (const name of ["verify_flow_proposal", "diff_flow_proposal"]) {
+    const op = ops.find((o) => o.name === name);
+    assert.ok(op, `${name} is registered`);
+    assert.equal(op.semantic_category, "READ");
+  }
+});
+
+test("a known-good spike candidate passes the structural gates", async () => {
+  const flows = new FlowSource();
+  await flows.ensureLoaded();
+  // The deepgram spike overlay has a `source` docs URL + a `verified` date and keeps eligibility
+  // in `gaps` — it should clear schema + provenance + eligibility.
+  const candidate = flows.curatedFor("deepgram/deepgram-pricing-startup-credits");
+  const v = collectProposalFindings(candidate);
+  assert.equal(v.schema_valid, true);
+  assert.deepEqual(v.provenance_findings, []);
+  assert.deepEqual(v.eligibility_findings, []);
+  assert.equal(v.ready_for_proposal, true);
+  assert.ok(v.adversarial_checklist.length > 0);
+});
+
+test("a substantive candidate with no provenance is flagged, not accepted", async () => {
+  const v = collectProposalFindings({
+    automatability: "api",
+    submission: { method: "oauth_signup", action_url: "https://x.example.com/signup" },
+    // no source / sources / verified
+  });
+  assert.equal(v.schema_valid, true);
+  assert.ok(v.provenance_findings.length >= 1, "no provenance → finding");
+  assert.equal(v.ready_for_proposal, false);
+});
+
+test("asserted eligibility is flagged, never satisfied and never blocking", async () => {
+  const v = collectProposalFindings({
+    automatability: "manual_review",
+    source: "https://provider.example.com/apply",
+    verified: "2026-06-28",
+    eligible: true, // recording eligibility as data instead of surfacing it in gaps
+  });
+  assert.ok(
+    v.eligibility_findings.some((f) => f.includes("eligibility")),
+    "eligibility encoded as data is flagged",
+  );
+  assert.equal(v.ready_for_proposal, false);
+  // The verdict never asserts eligibility nor hard-blocks the perk — it only surfaces a finding.
+  assert.ok(!("eligible" in v) && !("blocked" in v));
+});
+
+test("verify_flow_proposal errors on an unknown slug", async () => {
+  const { router } = await buildApp({ source: FIXTURE });
+  const res = await d(router, "verify_flow_proposal", {
+    slug: "nope/nope",
+    candidate: {},
+  });
+  assert.equal(res.success, false);
+  assert.equal(res.error.code, "NOT_FOUND_RESOURCE");
+});
+
+test("diffFlow reports changed + added fields", () => {
+  const diff = diffFlow(
+    { automatability: "web_only", source: "https://x/apply" },
+    { automatability: "api" },
+  );
+  assert.deepEqual(diff.changed.automatability, { from: "api", to: "web_only" });
+  assert.equal(diff.added.source, "https://x/apply");
+  assert.deepEqual(diff.removed, []);
+});
+
+test("diff_flow_proposal diffs an uncurated slug as all-added", async () => {
+  const { router } = await buildApp({ source: FIXTURE });
+  // neon/neon-free-tier has no curated overlay entry → every populated field is added.
+  const res = await d(router, "diff_flow_proposal", {
+    slug: "neon/neon-free-tier",
+    candidate: { automatability: "api", danger_level: 0 },
+  });
+  assert.equal(res.success, true);
+  assert.equal(res.data.added.automatability, "api");
+  assert.deepEqual(res.data.changed, {});
+  assert.deepEqual(res.data.removed, []);
 });

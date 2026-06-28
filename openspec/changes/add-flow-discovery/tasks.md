@@ -28,16 +28,16 @@
 
 ## 2. Model-free verification + diff
 
-- [ ] 2.1 `collectProposalFindings(candidate, currentCurated?)` in `data/discovery.ts`: schema (reuse
-  `collectCuratedFlowErrors`) + provenance (curated claims missing `sources[]`; missing `verified`)
-  + eligibility (a criterion recorded as satisfied) + the static adversarial checklist; derives
-  `ready_for_proposal`
-- [ ] 2.2 `verify_flow_proposal(slug, candidate)` READ op returning the structured verdict; never
+- [x] 2.1 `collectProposalFindings(candidate)` in `data/discovery.ts`: schema (reuse
+  `collectCuratedFlowErrors`) + provenance (a substantive candidate with no `source`/`sources[]`,
+  or no `verified`) + eligibility (a criterion encoded as data outside the contract) + the static
+  adversarial checklist; derives `ready_for_proposal`
+- [x] 2.2 `verify_flow_proposal(slug, candidate)` READ op returning the structured verdict; never
   asserts or auto-denies eligibility
-- [ ] 2.3 `diffFlow(candidate, currentCurated?)` + `diff_flow_proposal(slug, candidate)` READ op:
+- [x] 2.3 `diffFlow(candidate, currentCurated?)` + `diff_flow_proposal(slug, candidate)` READ op:
   field-level added/changed/removed; all-added when no current overlay entry
-- [ ] 2.4 Tests (spikes as fixtures): a known-good spike candidate passes and is
-  `ready_for_proposal`; an unsourced claim → provenance finding; an asserted eligibility →
+- [x] 2.4 Tests (spikes as fixtures): a known-good spike candidate passes and is
+  `ready_for_proposal`; a no-provenance claim → provenance finding; an asserted eligibility →
   eligibility finding (never satisfied, never blocked); the diff reports changed + added fields and
   all-added for an uncurated slug
 

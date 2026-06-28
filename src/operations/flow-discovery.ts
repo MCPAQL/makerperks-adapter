@@ -10,7 +10,12 @@ import { ok, err } from "../core/wire.js";
 import type { Router } from "../core/router.js";
 import type { DataSource } from "../data/source.js";
 import type { FlowSource } from "../data/flow-source.js";
-import { buildDiscoveryBrief } from "../data/discovery.js";
+import {
+  buildDiscoveryBrief,
+  collectProposalFindings,
+  diffFlow,
+} from "../data/discovery.js";
+import type { CuratedFlow } from "../data/flows.js";
 
 export function registerFlowDiscoveryOperations(
   router: Router,
@@ -45,6 +50,74 @@ export function registerFlowDiscoveryOperations(
         return err("NOT_FOUND_RESOURCE", `no program with slug: ${slug}`, { slug });
       }
       return ok(buildDiscoveryBrief(program, flows));
+    },
+  });
+
+  router.register({
+    name: "verify_flow_proposal",
+    semanticCategory: "READ",
+    description:
+      "Run the model-free gates on a candidate Flow Document: schema (the eval-free overlay " +
+      "validator), provenance (a substantive candidate must carry a `source` and/or `sources[]` " +
+      "plus a `verified` date), and eligibility-surfaced (eligibility encoded as data is flagged, " +
+      "never asserted, and the perk is never hard-blocked). Returns a verdict plus the adversarial " +
+      "checklist the agent must still execute. `ready_for_proposal` is the structural bar only — " +
+      "not an acceptance decision (that is the proposed-flow queue, #47 piece D).",
+    params: {
+      slug: {
+        type: "string",
+        required: true,
+        description: "The program slug the candidate is for.",
+      },
+      candidate: {
+        type: "object",
+        required: true,
+        description:
+          "The candidate Flow Document (a curated overlay record) to verify.",
+      },
+    },
+    returns:
+      "A verdict: `schema_valid`, `schema_errors`, `provenance_findings`, `eligibility_findings`, " +
+      "`adversarial_checklist`, and `ready_for_proposal`.",
+    handler: async (params) => {
+      await data.ensureLoaded();
+      const slug = params.slug as string;
+      if (!data.programs().some((p) => p.slug === slug)) {
+        return err("NOT_FOUND_RESOURCE", `no program with slug: ${slug}`, { slug });
+      }
+      return ok({ slug, ...collectProposalFindings(params.candidate) });
+    },
+  });
+
+  router.register({
+    name: "diff_flow_proposal",
+    semanticCategory: "READ",
+    description:
+      "Diff a candidate Flow Document against the current curated overlay entry for the slug — " +
+      "fields added, changed (with before/after), or removed — so a proposal's delta against what " +
+      "is currently served is reviewable. With no current entry, every populated field is added.",
+    params: {
+      slug: {
+        type: "string",
+        required: true,
+        description: "The program slug the candidate is for.",
+      },
+      candidate: {
+        type: "object",
+        required: true,
+        description: "The candidate Flow Document (a curated overlay record) to diff.",
+      },
+    },
+    returns: "A diff: `added`, `changed` (per field `{ from, to }`), and `removed`.",
+    handler: async (params) => {
+      await data.ensureLoaded();
+      await flows.ensureLoaded();
+      const slug = params.slug as string;
+      if (!data.programs().some((p) => p.slug === slug)) {
+        return err("NOT_FOUND_RESOURCE", `no program with slug: ${slug}`, { slug });
+      }
+      const current = flows.curatedFor(slug);
+      return ok({ slug, ...diffFlow(params.candidate as CuratedFlow, current) });
     },
   });
 }

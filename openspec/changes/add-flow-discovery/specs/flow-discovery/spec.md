@@ -53,23 +53,26 @@ adversarial checklist). It SHALL return a `NOT_FOUND_RESOURCE` error for an unkn
 
 A `verify_flow_proposal(slug, candidate)` read operation SHALL run the model-free gates on a
 candidate Flow Document and return a structured verdict without mutating state: schema validity
-(via the eval-free overlay validator), provenance findings (curated claims lacking a `sources[]`
-entry, or a missing `verified` date), and eligibility findings (any criterion recorded as
-satisfied). It SHALL also return the adversarial checklist the agent must execute semantically. A
-`ready_for_proposal` flag SHALL be true only when the schema is valid and there are no provenance
-or eligibility findings; it SHALL NOT constitute an acceptance decision, and eligibility SHALL
-never be asserted nor auto-denied.
+(via the eval-free overlay validator), provenance findings (a candidate that sets substantive
+curated claims but carries no provenance — neither a `source` docs URL nor a `sources[]` entry —
+or that is missing a `verified` date), and eligibility findings (any criterion recorded as data
+rather than surfaced in `gaps`). It SHALL also return the adversarial checklist the agent must
+execute semantically. A `ready_for_proposal` flag SHALL be true only when the schema is valid and
+there are no provenance or eligibility findings; it SHALL NOT constitute an acceptance decision,
+and eligibility SHALL never be asserted nor auto-denied.
 
 #### Scenario: A well-sourced candidate passes the structural gates
 
-- **WHEN** `verify_flow_proposal` is given a candidate that is schema-valid, carries `sources[]`
-  on its curated claims and a `verified` date, and leaves eligibility criteria in `gaps`
+- **WHEN** `verify_flow_proposal` is given a candidate that is schema-valid, carries provenance (a
+  `source` docs URL and/or `sources[]`) and a `verified` date, and leaves eligibility criteria in
+  `gaps`
 - **THEN** `schema_valid` is true, there are no provenance or eligibility findings, and
   `ready_for_proposal` is true
 
 #### Scenario: A guessed or unsourced claim is flagged, not accepted
 
-- **WHEN** a candidate encodes a curated claim with no supporting `sources[]` entry
+- **WHEN** a candidate sets substantive curated claims with no provenance (no `source` and no
+  `sources[]`) or with no `verified` date
 - **THEN** it appears in the provenance findings and `ready_for_proposal` is false
 
 #### Scenario: Asserted eligibility is flagged and never recorded as satisfied
