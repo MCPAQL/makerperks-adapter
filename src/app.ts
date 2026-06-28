@@ -36,7 +36,9 @@ export function buildRouter(data: DataSource, options: RouterStores = {}): Route
   registerReadOperations(router, data);
   registerFlowOperations(router, data);
   if (options.sessionStore) {
-    registerExecuteOperations(router, data, options.sessionStore);
+    // The pipeline assembles from the maker profile when one is wired (§4); the profile store
+    // is optional, so the pipeline still works (without profile fill) without it.
+    registerExecuteOperations(router, data, options.sessionStore, options.profileStore);
   }
   if (options.profileStore) {
     registerProfileOperations(router, options.profileStore);

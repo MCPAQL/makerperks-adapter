@@ -18,6 +18,25 @@ import type {
   ExecutionStage,
   SessionStore,
 } from "../session/state.js";
+import { appendAudit } from "../session/profile.js";
+import type { MakerProfile, ProfileStore, UserRecord } from "../session/profile.js";
+
+// Project the maker profile (#19/#34) into candidate application inputs. Only fields the
+// profile actually holds are surfaced; per-call inputs always override these (§4). Keys match
+// the flow's `source: "profile"` required_inputs (full_name / email / region / country).
+function profileInputs(profile?: MakerProfile): Record<string, unknown> {
+  if (!profile) return {};
+  const id = profile.identity;
+  const out: Record<string, unknown> = {};
+  if (id.name) {
+    out.full_name = id.name;
+    out.name = id.name;
+  }
+  if (id.email) out.email = id.email;
+  if (id.location?.region) out.region = id.location.region;
+  if (id.location?.country) out.country = id.location.country;
+  return out;
+}
 
 // The simulated lifecycle: each submit_step processes the current stage and advances one.
 const NEXT_STAGE: Record<Exclude<ExecutionStage, "done">, ExecutionStage> = {
@@ -45,6 +64,7 @@ export function registerExecuteOperations(
   router: Router,
   data: DataSource,
   store: SessionStore,
+  profileStore?: ProfileStore,
 ): void {
   router.register({
     name: "start_application",
@@ -121,6 +141,13 @@ export function registerExecuteOperations(
         description:
           "The token returned by a CONFIRMATION_REQUIRED halt, to proceed past a gated step.",
       },
+      credential_id: {
+        type: "string",
+        required: false,
+        description:
+          "At submission, a vault credential id to use. SIMULATED — the plaintext is never " +
+          "decrypted or returned; the use is recorded by label and audited (#19).",
+      },
     },
     returns:
       "An object with the new `stage`, `status`, what this step `did` (`simulated: true`), " +
@@ -152,7 +179,12 @@ export function registerExecuteOperations(
         });
       }
       const flow = getApplicationFlow(program);
-      const mergedInputs = { ...execution.inputs, ...inputs };
+      // §4: assemble from the maker profile — profile-derived values sit UNDER the per-call
+      // and accumulated inputs, so explicit inputs always win and `missing_inputs` reflects
+      // only what the profile genuinely lacks.
+      const userRecord = profileStore ? await profileStore.get() : undefined;
+      const fromProfile = profileInputs(userRecord?.profile);
+      const mergedInputs = { ...fromProfile, ...execution.inputs, ...inputs };
 
       // Batch-with-halting: a gated step pauses for a single-use, param-bound confirmation
       // token. `consumed` carries the token to mark used in the same write that advances.
@@ -219,29 +251,69 @@ export function registerExecuteOperations(
         consumed = ct;
       }
 
+      // §4: at submission, an optional vault credential may be referenced by id. The use is
+      // SIMULATED — the plaintext is never decrypted or returned; we record it by label and
+      // append a per-user audit entry. Resolved here (after the gate) so it only happens on a
+      // real advance.
+      let credentialLabel: string | undefined;
+      let auditRecord: UserRecord | undefined;
+      const credentialId = params.credential_id as string | undefined;
+      if (execution.stage === "submission" && credentialId) {
+        if (!profileStore) {
+          return err("NOT_FOUND_RESOURCE", "no credential vault in this deployment", {
+            credential_id: credentialId,
+          });
+        }
+        const rec: UserRecord = userRecord ?? {};
+        const entry = (rec.vault ?? []).find((c) => c.id === credentialId);
+        if (!entry) {
+          return err("NOT_FOUND_RESOURCE", `no credential with id: ${credentialId}`, {
+            credential_id: credentialId,
+          });
+        }
+        credentialLabel = `${entry.kind}:${entry.label}`;
+        auditRecord = appendAudit(
+          rec,
+          "use_credential",
+          `${credentialLabel} (simulated, not decrypted)`,
+        );
+      }
+
       let missing: string[] = [];
+      let filledFromProfile: string[] = [];
       let did: string;
       switch (execution.stage) {
         case "eligibility":
           did =
             "eligibility is the maker's to assert and is NOT auto-asserted (see flow.gaps)";
           break;
-        case "assemble":
+        case "assemble": {
           missing = flow.required_inputs
             .filter((ri) => ri.required && !(ri.key in mergedInputs))
             .map((ri) => ri.key);
+          filledFromProfile = flow.required_inputs
+            .filter((ri) => ri.key in fromProfile)
+            .map((ri) => ri.key);
           did =
             `assembled ${Object.keys(mergedInputs).length} input(s)` +
+            (filledFromProfile.length
+              ? ` (${filledFromProfile.length} from profile)`
+              : "") +
             (missing.length ? `; still missing: ${missing.join(", ")}` : "");
           break;
-        case "submission":
-          did =
+        }
+        case "submission": {
+          const base =
             flow.automatability === "api"
               ? `SIMULATED submission to ${flow.submission.action_url ?? "?"} ` +
                 `(method ${flow.submission.method}) with [${Object.keys(mergedInputs).join(", ")}]`
               : `prepared handoff to ${flow.submission.action_url ?? "?"} ` +
                 `(${flow.automatability}); no in-pipeline submit — see #21`;
+          did = credentialLabel
+            ? `${base}; would inject credential ${credentialLabel} (simulated, not decrypted)`
+            : base;
           break;
+        }
         case "verification":
           did = "SIMULATED verification (the provider would confirm)";
           break;
@@ -268,6 +340,8 @@ export function registerExecuteOperations(
             }
           : state.confirmationTokens,
       });
+      // Persist the per-user audit of the simulated credential use (separate from session state).
+      if (auditRecord && profileStore) await profileStore.set(auditRecord);
 
       return ok({
         execution_id: executionId,
@@ -276,6 +350,7 @@ export function registerExecuteOperations(
         did,
         simulated: true,
         missing_inputs: missing,
+        filled_from_profile: filledFromProfile,
         next_step:
           nextStage === "done"
             ? "completed"

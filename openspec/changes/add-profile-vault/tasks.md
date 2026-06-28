@@ -68,13 +68,19 @@
 
 ## 4. Pipeline integration (assemble from profile; gated, audited secret-use) — #52
 
-- [ ] 4.1 `assemble` merges profile-derived defaults under per-call `inputs` (explicit wins);
-  `missing_inputs` reflects only what the profile lacks
-- [ ] 4.2 `submission` may reference a vault entry by `id`; use is **simulated** ("would
-  inject <label>"), gated by the autonomy switch + confirmation token, and audited; eligibility
-  still never auto-asserted
-- [ ] 4.3 Tests: assemble fills from profile; secret-use is gated + audited + never returns
-  plaintext; danger ≥ 3 still stops
+- [x] 4.1 `assemble` merges `profileInputs(profile)` UNDER per-call + accumulated inputs
+  (explicit wins); `missing_inputs` reflects only what the profile lacks; the response reports
+  `filled_from_profile`. Keys match the flow's `source: "profile"` inputs (full_name / email /
+  region / country). `registerExecuteOperations` now takes an optional `profileStore`
+- [x] 4.2 `submit_step` takes an optional `credential_id`; at submission it resolves the vault
+  entry (metadata only), records "would inject <label> (simulated, not decrypted)" in the log,
+  and appends a per-user `use_credential` audit entry — resolved AFTER the gate, so it's gated
+  by the autonomy switch + confirmation token. Plaintext is never decrypted or returned.
+  Eligibility still never auto-asserted
+- [x] 4.3 Tests (`test/pipeline-profile.test.mjs`): assemble fills from profile (vs empty
+  profile); per-call override wins; credential use is gated (halts first, audited only on
+  resume), simulated, and never leaks the secret; unknown credential id → NOT_FOUND. danger ≥ 3
+  stop is unchanged (autonomy suite). 111 node:test + 6 vitest green
 
 ## 5. Validate + archive — #53
 
