@@ -82,4 +82,24 @@ const oauthOptions = {
   scopesSupported: ["mcp"],
 };
 
-export default new OAuthProvider<Env>(oauthOptions);
+const oauthProvider = new OAuthProvider<Env>(oauthOptions);
+
+// Hardening after the 2026-06-28 KV-overuse incident: this endpoint is stateless
+// request/response and offers NO server->client SSE stream. Some MCP clients open a GET
+// stream, find it can't persist, and reconnect ~2x/sec — each reconnect costing an OAuth
+// token-validation KV read (one looping client = ~166k requests/day, blowing the free KV
+// read *and* Workers request limits). Answer GET on the API route with 405 BEFORE the OAuth
+// layer: zero KV reads, and a spec-compliant client falls back to POST-only instead of
+// looping. Discovery GETs (/.well-known/*) and the /authorize redirect are untouched.
+export default {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+    const url = new URL(request.url);
+    if (request.method === "GET" && url.pathname === "/") {
+      return new Response(
+        "Method Not Allowed — this MCP endpoint is POST-only (no SSE stream).",
+        { status: 405, headers: { Allow: "POST", "content-type": "text/plain" } },
+      );
+    }
+    return oauthProvider.fetch(request, env, ctx);
+  },
+};
