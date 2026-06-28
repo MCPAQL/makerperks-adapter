@@ -59,7 +59,8 @@
 
 ## 4. Validate + archive
 
-- [ ] 4.1 Reframe #63 to the model-agnostic, server-toolkit architecture (the "pin a Claude model"
+- [x] 4.1 Reframe #63 to the model-agnostic, server-toolkit architecture (the "pin a Claude model"
   language only applies if Claude happens to be the driving client); note the arc status on #47
-- [ ] 4.2 `openspec validate add-flow-discovery --strict`; typecheck/lint/both test layers green
-- [ ] 4.3 Archive into `openspec/specs/` (`flow-discovery` created)
+- [x] 4.2 `openspec validate add-flow-discovery --strict`; typecheck/lint/both test layers green
+- [ ] 4.3 Archive into `openspec/specs/` (`flow-discovery` created) — **after the §3.5 live demo
+  confirms acceptable spike fidelity** (the whole-change DoD requires the demonstrated regeneration)
