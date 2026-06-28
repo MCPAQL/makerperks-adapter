@@ -60,3 +60,24 @@ export function statusEntryFor(
 ): StatusEntry {
   return effectiveStatusPolicy(stored)[resolveStatus(program)];
 }
+
+/**
+ * The proposal gate for a program under the session's policy, with a human-readable finding for
+ * `flag` / `block`. `allow` → no finding. Used by `propose_flow` / `verify_flow_proposal` (§3):
+ * `flag` is a non-blocking surfaced caveat; `block` refuses the proposal.
+ */
+export function statusProposalCheck(
+  program: PerkProgram,
+  stored?: Partial<Record<ProgramStatus, Partial<StatusEntry>>>,
+): { gate: ProposalGate; finding?: string } {
+  const gate = statusEntryFor(program, stored).proposal;
+  if (gate === "allow") return { gate };
+  const status = resolveStatus(program);
+  return {
+    gate,
+    finding:
+      `Program status is ${status}; your status policy ${gate === "block" ? "blocks" : "flags"} ` +
+      `proposing a flow for it` +
+      (gate === "block" ? " (set its proposal gate to allow/flag to proceed)." : "."),
+  };
+}

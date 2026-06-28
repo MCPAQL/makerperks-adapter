@@ -38,10 +38,12 @@
 
 ## 3. Proposals honor `flag` / `block`
 
-- [ ] 3.1 `propose_flow` / `verify_flow_proposal` apply the program's `proposal` gate: `flag` → a
-  non-blocking status finding; `block` → refuse with a clear error; `allow` → neither
-- [ ] 3.2 Tests: default `Discontinued` (`flag`) surfaces a finding but still queues; a configured
-  `block` refuses; an `Active` program is unaffected
+- [x] 3.1 `propose_flow` / `verify_flow_proposal` apply the program's `proposal` gate (via
+  `statusProposalCheck`): `flag` → a non-blocking `status_finding`; `block` → refuse
+  (`CONFLICT_EXISTS`, nothing queued); `allow` → neither. The proposer's per-user policy via the
+  `ProfileStore`
+- [x] 3.2 Tests: default `Discontinued` (`flag`) surfaces a finding but still queues; a configured
+  `block` refuses both propose + verify (nothing queued); an `Active` program is unaffected
 
 ## 4. Validate + archive
 

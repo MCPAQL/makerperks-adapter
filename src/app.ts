@@ -83,6 +83,7 @@ export function buildRouter(
       flows,
       options.flowRegistry,
       options.proposer,
+      options.profileStore,
     );
   }
   if (options.sessionStore) {

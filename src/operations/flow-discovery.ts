@@ -16,6 +16,7 @@ import {
   diffFlow,
 } from "../data/discovery.js";
 import { getApplicationFlow, freshness, type CuratedFlow } from "../data/flows.js";
+import { statusProposalCheck } from "../data/status.js";
 import { REDISCOVER_AFTER } from "./flow-health.js";
 import type { ProfileStore } from "../session/profile.js";
 import type { FlowRegistry } from "../session/flow-registry.js";
@@ -90,10 +91,18 @@ export function registerFlowDiscoveryOperations(
     handler: async (params) => {
       await data.ensureLoaded();
       const slug = params.slug as string;
-      if (!data.programs().some((p) => p.slug === slug)) {
+      const program = data.programs().find((p) => p.slug === slug);
+      if (!program) {
         return err("NOT_FOUND_RESOURCE", `no program with slug: ${slug}`, { slug });
       }
-      return ok({ slug, ...collectProposalFindings(params.candidate) });
+      // Apply the session's status policy (#36): block refuses; flag surfaces a non-blocking finding.
+      const stored = store ? (await store.get())?.statusPolicy : undefined;
+      const { gate, finding } = statusProposalCheck(program, stored);
+      if (gate === "block") {
+        return err("CONFLICT_EXISTS", finding!, { slug, status: program.status });
+      }
+      const verdict = collectProposalFindings(params.candidate);
+      return ok({ slug, ...verdict, ...(finding ? { status_finding: finding } : {}) });
     },
   });
 

@@ -10,7 +10,9 @@ import type { Router } from "../core/router.js";
 import type { DataSource } from "../data/source.js";
 import type { FlowSource } from "../data/flow-source.js";
 import { collectProposalFindings, diffFlow } from "../data/discovery.js";
+import { statusProposalCheck } from "../data/status.js";
 import type { CuratedFlow, CuratedFlows } from "../data/flows.js";
+import type { ProfileStore } from "../session/profile.js";
 import {
   ACCEPTANCE_MODES,
   type AcceptanceMode,
@@ -68,6 +70,9 @@ export function registerFlowAcceptanceOperations(
   // The authenticated subject of the session, stamped onto proposals as `proposed_by` (#73). Set
   // by the server from the session identity — never a caller param. Undefined → unattributed.
   proposer?: string,
+  // The per-user store, for the proposer's status policy (#36): block refuses a proposal, flag
+  // surfaces a non-blocking finding. Undefined → the DEFAULT policy (flag non-Active, block none).
+  store?: ProfileStore,
 ): void {
   router.register({
     name: "propose_flow",
@@ -105,6 +110,13 @@ export function registerFlowAcceptanceOperations(
       if (!program) {
         return err("NOT_FOUND_RESOURCE", `no program with slug: ${slug}`, { slug });
       }
+      // Apply the proposer's status policy (#36): block refuses; flag surfaces a non-blocking finding.
+      const stored = store ? (await store.get())?.statusPolicy : undefined;
+      const { gate, finding } = statusProposalCheck(program, stored);
+      if (gate === "block") {
+        return err("CONFLICT_EXISTS", finding!, { slug, status: program.status });
+      }
+      const statusExtra = finding ? { status_finding: finding } : {};
       const candidate = params.candidate as CuratedFlow;
       const verdict = collectProposalFindings(candidate);
       const proposal: Proposal = {
@@ -138,9 +150,10 @@ export function registerFlowAcceptanceOperations(
           status: decided.status,
           verdict,
           auto_accepted: true,
+          ...statusExtra,
         });
       }
-      return ok({ id: proposal.id, status: proposal.status, verdict });
+      return ok({ id: proposal.id, status: proposal.status, verdict, ...statusExtra });
     },
   });
 

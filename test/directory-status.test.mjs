@@ -142,3 +142,73 @@ test("with no store wired, nothing is excluded", async () => {
   const { router } = await buildApp({ source: STATUS_FIXTURE });
   assert.equal((await d(router, "list_programs", {})).data.count, 2);
 });
+
+// ── §3: proposals honor flag / block ─────────────────────────────────────────
+
+import { inMemoryFlowRegistry } from "../dist/session/flow-registry.js";
+
+const DISCONTINUED = "defunct/gone-perk";
+const ACTIVE = "acme/active-perk";
+const readyCand = {
+  automatability: "api",
+  submission: { method: "oauth_signup", action_url: "https://x.example.com/signup" },
+  redemption: { type: "auto" },
+  danger_level: 0,
+  source: "https://x.example.com/signup",
+  verified: "2026-06-28",
+};
+const proposeApp = () =>
+  buildApp({
+    source: STATUS_FIXTURE,
+    profileStore: inMemoryProfileStore(),
+    flowRegistry: inMemoryFlowRegistry(),
+  });
+
+test("default Discontinued (flag) surfaces a finding but still queues the proposal", async () => {
+  const { router } = await proposeApp();
+  const res = await d(router, "propose_flow", {
+    slug: DISCONTINUED,
+    candidate: readyCand,
+  });
+  assert.equal(res.success, true);
+  assert.equal(res.data.status, "pending");
+  assert.ok(
+    res.data.status_finding && res.data.status_finding.includes("Discontinued"),
+  );
+});
+
+test("verify_flow_proposal flags a Discontinued program (non-blocking)", async () => {
+  const { router } = await proposeApp();
+  const res = await d(router, "verify_flow_proposal", {
+    slug: DISCONTINUED,
+    candidate: readyCand,
+  });
+  assert.equal(res.success, true);
+  assert.ok(res.data.status_finding);
+});
+
+test("a blocked status refuses propose and verify", async () => {
+  const { router } = await proposeApp();
+  await d(router, "set_status_policy", { status: "Discontinued", proposal: "block" });
+  const prop = await d(router, "propose_flow", {
+    slug: DISCONTINUED,
+    candidate: readyCand,
+  });
+  assert.equal(prop.success, false);
+  assert.equal(prop.error.code, "CONFLICT_EXISTS");
+  const ver = await d(router, "verify_flow_proposal", {
+    slug: DISCONTINUED,
+    candidate: readyCand,
+  });
+  assert.equal(ver.success, false);
+  assert.equal(ver.error.code, "CONFLICT_EXISTS");
+  // nothing was queued
+  assert.equal((await d(router, "list_proposed_flows", {})).data.count, 0);
+});
+
+test("an Active program is unaffected by the status gate", async () => {
+  const { router } = await proposeApp();
+  const res = await d(router, "propose_flow", { slug: ACTIVE, candidate: readyCand });
+  assert.equal(res.data.status, "pending");
+  assert.ok(!("status_finding" in res.data));
+});
