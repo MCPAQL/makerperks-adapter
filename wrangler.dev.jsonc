@@ -21,6 +21,14 @@
     "bindings": [{ "name": "MCP_OBJECT", "class_name": "MakerPerksMcpAgent" }],
   },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["MakerPerksMcpAgent"] }],
+  // Per-IP rate-limit backstop (mirrors the live worker). 100 requests / 10s per IP.
+  "ratelimits": [
+    {
+      "name": "MCP_RATE_LIMITER",
+      "namespace_id": "1002",
+      "simple": { "limit": 100, "period": 10 },
+    },
+  ],
   // Real per-user OAuth (§3) delegates /authorize to GitHub. Two secrets are required —
   // set them on this Worker (NOT committed):
   //   wrangler secret put GITHUB_CLIENT_ID     -c wrangler.dev.jsonc

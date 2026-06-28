@@ -32,10 +32,16 @@ import {
 } from "./auth/github.js";
 import type { Server } from "@modelcontextprotocol/sdk/server/index.js";
 
+// Cloudflare Workers Rate Limiting binding (per-IP backstop against abuse / runaway clients).
+interface RateLimit {
+  limit(options: { key: string }): Promise<{ success: boolean }>;
+}
+
 interface Env {
   OAUTH_KV: KVNamespace;
   MCP_OBJECT: DurableObjectNamespace;
   PERKS_URL?: string;
+  MCP_RATE_LIMITER: RateLimit;
   // Set as Worker secrets on the dev Worker (`wrangler secret put ... -c wrangler.dev.jsonc`).
   GITHUB_CLIENT_ID?: string;
   GITHUB_CLIENT_SECRET?: string;
@@ -172,4 +178,22 @@ const oauthOptions = {
   scopesSupported: ["mcp"],
 };
 
-export default new OAuthProvider<Env>(oauthOptions);
+const oauthProvider = new OAuthProvider<Env>(oauthOptions);
+
+// Per-IP rate-limit backstop (mirrors the live worker). NOTE: unlike the stateless live
+// endpoint, this stateful endpoint legitimately uses GET/SSE for per-session streams, so we
+// do NOT 405 GET here — that would break McpAgent's sessions. Just the rate limit, checked
+// before OAuth/work.
+export default {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+    const ip = request.headers.get("cf-connecting-ip") ?? "unknown";
+    const { success } = await env.MCP_RATE_LIMITER.limit({ key: ip });
+    if (!success) {
+      return new Response("Too Many Requests", {
+        status: 429,
+        headers: { "retry-after": "10", "content-type": "text/plain" },
+      });
+    }
+    return oauthProvider.fetch(request, env, ctx);
+  },
+};
