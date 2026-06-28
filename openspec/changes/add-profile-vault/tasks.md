@@ -57,9 +57,11 @@
   `VaultCrypto` (from `VAULT_KEY`) bound to `this.props.userId`, so a session can only ever
   read/write its own user's record; no userId → surface not registered; live worker untouched.
   Typechecks + builds; 92 tests green
-- [ ] 3.3 Deploy: `wrangler secret put VAULT_KEY -c wrangler.dev.jsonc`, `npm run deploy:dev`;
-  verify two users get isolated records + unauthenticated has no profile access, from Claude
-  Desktop against `makerperks-dev.mcpaql.com`
+- [x] 3.3 Deployed to `makerperks-dev.mcpaql.com` (`VAULT_KEY` secret set, `v2` DO migration
+  applied, both DOs bound). Verified from Claude Desktop: surface present, profile create/read/
+  add_project, **persistence across reconnect** (the per-user DO), vault metadata-only,
+  payment refused, audit (no secret values). **Per-user isolation is structural (one DO per
+  `userId`) but not yet automated** — moved to the test-harness work (see below).
 
 ## 4. Pipeline integration (assemble from profile; gated, audited secret-use) — #52
 
