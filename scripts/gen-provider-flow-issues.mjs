@@ -36,9 +36,11 @@ if (!candidates.length) {
   process.exit(0);
 }
 
-// Already-curated slugs (skip) — read from the compiled overlay.
-const { curatedFlows } = await import("../dist/data/provider-flows.js");
-const curated = new Set(Object.keys(curatedFlows));
+// Already-curated slugs (skip) — read from the loaded flows.json overlay (#47).
+const { FlowSource } = await import("../dist/data/flow-source.js");
+const flowSource = new FlowSource();
+await flowSource.ensureLoaded();
+const curated = new Set(Object.keys(flowSource.all()));
 
 // Existing `provider-flow` issues (skip) — title convention: "provider-flow: <slug>".
 const existingJson = execFileSync(
@@ -99,7 +101,7 @@ for (const slug of toCreate) {
   const title = `provider-flow: ${slug}`;
   const body = [
     `Research the real application flow for **${p.provider}** (\`${slug}\`, ${p.value_display ?? "?"}) and`,
-    `encode it into \`src/data/provider-flows.ts\` (curated overlay) per the \`ApplicationFlow\` schema.`,
+    `encode it into \`src/data/flows.json\` (curated overlay) per the \`ApplicationFlow\` schema.`,
     ``,
     `- Tag \`automatability\` (api / web_only / manual_review) against the provider's real signup/docs (${p.url ?? "?"}).`,
     `- Fill required_inputs, submission (method + url), redemption, danger_level.`,

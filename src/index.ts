@@ -20,8 +20,10 @@ async function main(): Promise<void> {
   // keyfile under ~/.makerperks/ (override the dir with MAKERPERKS_VAULT_DIR).
   const vaultDir = process.env.MAKERPERKS_VAULT_DIR ?? join(homedir(), ".makerperks");
   const vaultKey = await loadLocalVaultKey(vaultDir);
+  const flowsSource = process.env.MAKERPERKS_FLOWS; // a flows.json URL/path; unset = bundled
   const { router } = await buildApp({
     ...(source ? { source } : {}),
+    ...(flowsSource ? { flowsSource } : {}),
     sessionStore: inMemorySessionStore(),
     profileStore: inMemoryProfileStore(),
     vaultCrypto: vaultCrypto(vaultKey),

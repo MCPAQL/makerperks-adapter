@@ -7,11 +7,16 @@
 import { ok, err } from "../core/wire.js";
 import type { Router } from "../core/router.js";
 import type { DataSource } from "../data/source.js";
+import type { FlowSource } from "../data/flow-source.js";
 import { getApplicationFlow, type Automatability } from "../data/flows.js";
 
 const AUTOMATABILITY = ["api", "web_only", "manual_review", "unknown"] as const;
 
-export function registerFlowOperations(router: Router, data: DataSource): void {
+export function registerFlowOperations(
+  router: Router,
+  data: DataSource,
+  flows: FlowSource,
+): void {
   router.register({
     name: "get_application_flow",
     semanticCategory: "READ",
@@ -30,12 +35,13 @@ export function registerFlowOperations(router: Router, data: DataSource): void {
     returns: "An object with the `flow` record for the program.",
     handler: async (params) => {
       await data.ensureLoaded();
+      await flows.ensureLoaded();
       const slug = params.slug as string;
       const program = data.programs().find((p) => p.slug === slug);
       if (!program) {
         return err("NOT_FOUND_RESOURCE", `no program with slug: ${slug}`, { slug });
       }
-      return ok({ flow: getApplicationFlow(program) });
+      return ok({ flow: getApplicationFlow(program, flows) });
     },
   });
 
@@ -64,14 +70,15 @@ export function registerFlowOperations(router: Router, data: DataSource): void {
       "automatability, confidence, danger_level).",
     handler: async (params) => {
       await data.ensureLoaded();
+      await flows.ensureLoaded();
       const automatability = params.automatability as Automatability | undefined;
       const limit = params.limit as number | undefined;
 
-      let flows = data.programs().map((p) => getApplicationFlow(p));
+      let merged = data.programs().map((p) => getApplicationFlow(p, flows));
       if (automatability) {
-        flows = flows.filter((f) => f.automatability === automatability);
+        merged = merged.filter((f) => f.automatability === automatability);
       }
-      const summaries = flows.map((f) => ({
+      const summaries = merged.map((f) => ({
         slug: f.slug,
         provider: f.provider,
         title: f.title,

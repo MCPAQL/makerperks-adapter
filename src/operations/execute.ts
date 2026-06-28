@@ -9,6 +9,7 @@
 import { ok, err } from "../core/wire.js";
 import type { Router } from "../core/router.js";
 import type { DataSource } from "../data/source.js";
+import type { FlowSource } from "../data/flow-source.js";
 import { getApplicationFlow } from "../data/flows.js";
 import { AUTONOMY_MODES, autonomyDecision } from "../session/state.js";
 import type {
@@ -47,6 +48,7 @@ function stableStringify(value: unknown): string {
 export function registerExecuteOperations(
   router: Router,
   data: DataSource,
+  flows: FlowSource,
   store: SessionStore,
   profileStore?: ProfileStore,
 ): void {
@@ -162,7 +164,8 @@ export function registerExecuteOperations(
           slug: execution.slug,
         });
       }
-      const flow = getApplicationFlow(program);
+      await flows.ensureLoaded();
+      const flow = getApplicationFlow(program, flows);
       // §4: assemble from the maker profile — profile-derived values sit UNDER the per-call
       // and accumulated inputs, so explicit inputs always win and `missing_inputs` reflects
       // only what the profile genuinely lacks.
@@ -378,8 +381,9 @@ export function registerExecuteOperations(
           execution_id: executionId,
         });
       }
+      await flows.ensureLoaded();
       const program = data.programs().find((p) => p.slug === execution.slug);
-      const flow = program ? getApplicationFlow(program) : undefined;
+      const flow = program ? getApplicationFlow(program, flows) : undefined;
       return ok({
         execution,
         flow: flow
@@ -434,7 +438,8 @@ export function registerExecuteOperations(
           slug: execution.slug,
         });
       }
-      const flow = getApplicationFlow(program);
+      await flows.ensureLoaded();
+      const flow = getApplicationFlow(program, flows);
       const userRecord = profileStore ? await profileStore.get() : undefined;
       return ok({ handoff: buildHandoff(flow, execution, userRecord?.profile) });
     },
@@ -478,9 +483,10 @@ export function registerExecuteOperations(
       const slug = params.slug as string | undefined;
       if (slug) {
         await data.ensureLoaded();
+        await flows.ensureLoaded();
         const program = data.programs().find((p) => p.slug === slug);
         if (program) {
-          danger = Math.max(danger, getApplicationFlow(program).danger_level);
+          danger = Math.max(danger, getApplicationFlow(program, flows).danger_level);
         }
       }
 

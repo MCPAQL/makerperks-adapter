@@ -19,6 +19,8 @@ interface RateLimit {
 interface Env {
   OAUTH_KV: KVNamespace;
   PERKS_URL?: string;
+  /** A flows.json URL for the curated overlay (#47); unset = the bundled default. */
+  FLOWS_URL?: string;
   MCP_RATE_LIMITER: RateLimit;
 }
 
@@ -27,9 +29,10 @@ interface Env {
 let routerPromise: Promise<Router> | undefined;
 
 function getRouter(env: Env): Promise<Router> {
-  routerPromise ??= buildApp(env.PERKS_URL ? { source: env.PERKS_URL } : {}).then(
-    (app) => app.router,
-  );
+  routerPromise ??= buildApp({
+    ...(env.PERKS_URL ? { source: env.PERKS_URL } : {}),
+    ...(env.FLOWS_URL ? { flowsSource: env.FLOWS_URL } : {}),
+  }).then((app) => app.router);
   return routerPromise;
 }
 

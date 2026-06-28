@@ -1,13 +1,14 @@
 // Application-flow dataset (Stage 1, #16). Two layers over the directory:
 //   - DERIVED: a baseline flow computed from each perks.json program (low-confidence,
 //     gaps explicit) — so the server always answers "what does it take to apply to X?".
-//   - CURATED: a repo-owned overlay (provider-flows.json) of verified per-slug flows that
-//     override the baseline (§2). This file holds §1: the schema, the derivation, and an
-//     eval-free validator for the curated overlay (no ajv — Workers disallow new Function).
-// See openspec/changes/add-provider-flows (capability `application-flows`).
+//   - CURATED: a portable per-slug overlay loaded from flows.json (a FlowSource) that overrides
+//     the baseline. This file holds the schema, the derivation, mergeFlow, and an eval-free
+//     validator for the overlay (no ajv — Workers disallow new Function). The overlay itself is
+//     loaded via src/data/flow-source.ts (#47 add-flow-documents).
+// See openspec/changes/add-provider-flows + add-flow-documents (capability `application-flows`).
 
 import type { PerkProgram } from "./source.js";
-import { curatedFlows } from "./provider-flows.js";
+import type { FlowSource } from "./flow-source.js";
 
 export type Automatability = "api" | "web_only" | "manual_review" | "unknown";
 export type Confidence = "derived" | "curated";
@@ -298,22 +299,14 @@ export function mergeFlow(
   };
 }
 
-// Validate the shipped curated overlay once, lazily — the eval-free validator earns its keep
-// against hand-authoring errors (and any future non-typed/fetched overlay).
-let curatedValidated = false;
-function ensureCuratedValid(): void {
-  if (curatedValidated) return;
-  const errors = collectCuratedFlowErrors(curatedFlows);
-  if (errors.length > 0) {
-    throw new Error(
-      `curated provider-flows are invalid: ${errors.slice(0, 5).join("; ")}`,
-    );
-  }
-  curatedValidated = true;
-}
-
-/** The merged application flow for a program: curated overlay over the derived baseline. */
-export function getApplicationFlow(program: PerkProgram): ApplicationFlow {
-  ensureCuratedValid();
-  return mergeFlow(deriveFlow(program), curatedFlows[program.slug]);
+/**
+ * The merged application flow for a program: the curated overlay (a Flow Document from the
+ * loaded `FlowSource`, #47) over the derived baseline. The `FlowSource` validates the overlay on
+ * load, so callers must `ensureLoaded()` it first (as they already do the `DataSource`).
+ */
+export function getApplicationFlow(
+  program: PerkProgram,
+  flows: FlowSource,
+): ApplicationFlow {
+  return mergeFlow(deriveFlow(program), flows.curatedFor(program.slug));
 }

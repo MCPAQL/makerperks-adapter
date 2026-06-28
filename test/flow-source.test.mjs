@@ -2,9 +2,14 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { FlowSource } from "../dist/data/flow-source.js";
-import { curatedFlows } from "../dist/data/provider-flows.js";
+import { buildApp } from "../dist/app.js";
 
 const GCP = "gcp/google-ai-startup-program";
+const SPIKES = {
+  "deepgram/deepgram-pricing-startup-credits": "api",
+  "anthropic/anthropic-startup-program": "manual_review",
+  "gcp/google-ai-startup-program": "web_only",
+};
 
 test("FlowSource loads the bundled overlay and resolves a slug", async () => {
   const fs = new FlowSource();
@@ -16,15 +21,15 @@ test("FlowSource loads the bundled overlay and resolves a slug", async () => {
   assert.equal(Object.keys(fs.all()).length, 3);
 });
 
-test("the migrated flows.json is verbatim-equal to the old provider-flows.ts overlay", async () => {
+test("the bundled flows.json carries the 3 curated spikes with their automatability", async () => {
   const fs = new FlowSource();
   await fs.ensureLoaded();
-  for (const slug of Object.keys(curatedFlows)) {
-    assert.deepEqual(
-      fs.curatedFor(slug),
-      curatedFlows[slug],
-      `flows.json drift for ${slug}`,
-    );
+  for (const [slug, automatability] of Object.entries(SPIKES)) {
+    const doc = fs.curatedFor(slug);
+    assert.ok(doc, `missing curated flow for ${slug}`);
+    assert.equal(doc.automatability, automatability);
+    assert.ok(Array.isArray(doc.required_inputs) && doc.required_inputs.length > 0);
+    assert.ok(Array.isArray(doc.gaps) && doc.gaps.length > 0);
   }
 });
 
@@ -74,4 +79,26 @@ test("a non-OK fetch fails loud", async () => {
     fetchImpl: async () => new Response("", { status: 404 }),
   });
   await assert.rejects(() => fs.ensureLoaded(), /failed to fetch/);
+});
+
+// §2 end-to-end: a flowsSource override changes the served flow through buildApp + the ops.
+test("get_application_flow reflects a flowsSource override (not the bundled default)", async () => {
+  const { router } = await buildApp({
+    source: "test/fixtures/perks.sample.json",
+    flowsSource: "test/fixtures/flows.alt.json",
+  });
+  const overridden = await router.dispatch({
+    operation: "get_application_flow",
+    params: { slug: "neon/neon-free-tier" },
+  });
+  assert.equal(overridden.data.flow.confidence, "curated"); // overlay applied
+  assert.equal(overridden.data.flow.automatability, "manual_review");
+  assert.equal(overridden.data.flow.submission.action_url, "https://alt.example/apply");
+
+  // A slug absent from the alt overlay falls back to the derived baseline.
+  const derived = await router.dispatch({
+    operation: "get_application_flow",
+    params: { slug: "anthropic/anthropic-startup-program" },
+  });
+  assert.equal(derived.data.flow.confidence, "derived");
 });

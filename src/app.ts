@@ -11,11 +11,14 @@ import { registerExecuteOperations } from "./operations/execute.js";
 import { registerProfileOperations } from "./operations/profile.js";
 import { registerVaultOperations } from "./operations/vault.js";
 import { DataSource, type DataSourceOptions } from "./data/source.js";
+import { FlowSource } from "./data/flow-source.js";
 import type { SessionStore } from "./session/state.js";
 import type { ProfileStore } from "./session/profile.js";
 import type { VaultCrypto } from "./session/vault.js";
 
 export interface AppOptions extends DataSourceOptions {
+  /** A flows.json URL or file path for the curated overlay (#47). Unset = the bundled default. */
+  flowsSource?: string;
   /** When present, the EXECUTE pipeline is registered, bound to this session's store. */
   sessionStore?: SessionStore;
   /** When present, the CRUDE maker-profile surface is registered, bound to this user's store. */
@@ -30,15 +33,25 @@ interface RouterStores {
   vaultCrypto?: VaultCrypto;
 }
 
-/** Assemble a router over already-loaded data. EXECUTE/CRUDE ops register only with a store. */
-export function buildRouter(data: DataSource, options: RouterStores = {}): Router {
+/** Assemble a router over already-loaded data + flow overlay. EXECUTE/CRUDE ops need a store. */
+export function buildRouter(
+  data: DataSource,
+  flows: FlowSource,
+  options: RouterStores = {},
+): Router {
   const router = new Router();
   registerReadOperations(router, data);
-  registerFlowOperations(router, data);
+  registerFlowOperations(router, data, flows);
   if (options.sessionStore) {
     // The pipeline assembles from the maker profile when one is wired (§4); the profile store
     // is optional, so the pipeline still works (without profile fill) without it.
-    registerExecuteOperations(router, data, options.sessionStore, options.profileStore);
+    registerExecuteOperations(
+      router,
+      data,
+      flows,
+      options.sessionStore,
+      options.profileStore,
+    );
   }
   if (options.profileStore) {
     registerProfileOperations(router, options.profileStore);
@@ -53,10 +66,12 @@ export function buildRouter(data: DataSource, options: RouterStores = {}): Route
 
 export async function buildApp(
   options: AppOptions = {},
-): Promise<{ router: Router; data: DataSource }> {
-  const { sessionStore, profileStore, vaultCrypto, ...dataOptions } = options;
+): Promise<{ router: Router; data: DataSource; flows: FlowSource }> {
+  const { flowsSource, sessionStore, profileStore, vaultCrypto, ...dataOptions } =
+    options;
   const data = new DataSource(dataOptions);
-  await data.ensureLoaded();
-  const router = buildRouter(data, { sessionStore, profileStore, vaultCrypto });
-  return { router, data };
+  const flows = new FlowSource(flowsSource ? { source: flowsSource } : {});
+  await Promise.all([data.ensureLoaded(), flows.ensureLoaded()]);
+  const router = buildRouter(data, flows, { sessionStore, profileStore, vaultCrypto });
+  return { router, data, flows };
 }

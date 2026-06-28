@@ -18,6 +18,7 @@ import { McpAgent } from "agents/mcp";
 import { buildRouter } from "./app.js";
 import { createMcpServer } from "./mcp.js";
 import { DataSource } from "./data/source.js";
+import { FlowSource } from "./data/flow-source.js";
 import {
   freshSessionState,
   type SessionState,
@@ -54,6 +55,8 @@ interface Env {
   // Per-USER profile/vault store (#51). One DO per user via idFromName(userId).
   PROFILE_OBJECT: DurableObjectNamespace<MakerProfileDO>;
   PERKS_URL?: string;
+  /** A flows.json URL for the curated overlay (#47); unset = the bundled default. */
+  FLOWS_URL?: string;
   MCP_RATE_LIMITER: RateLimit;
   // Set as Worker secrets on the dev Worker (`wrangler secret put ... -c wrangler.dev.jsonc`).
   GITHUB_CLIENT_ID?: string;
@@ -99,6 +102,20 @@ function getData(env: Env): Promise<DataSource> {
   return dataPromise;
 }
 
+// Cache the FLOW overlay per isolate too (fetched from FLOWS_URL or the bundled default).
+let flowsPromise: Promise<FlowSource> | undefined;
+function getFlows(env: Env): Promise<FlowSource> {
+  flowsPromise ??= (async () => {
+    const flows = new FlowSource(env.FLOWS_URL ? { source: env.FLOWS_URL } : {});
+    await flows.ensureLoaded();
+    return flows;
+  })().catch((error) => {
+    flowsPromise = undefined;
+    throw error;
+  });
+  return flowsPromise;
+}
+
 /**
  * A Durable Object per MCP session — the Stage 1 stateful substrate. Mounts the existing
  * single `mcp_aql_read` READ surface unchanged (introspect + READ ops), so the hosted
@@ -120,6 +137,7 @@ export class MakerPerksMcpAgent extends McpAgent<Env, SessionState, UserProps> {
 
   async init(): Promise<void> {
     const data = await getData(this.env);
+    const flows = await getFlows(this.env);
     const store: SessionStore = {
       get: () => this.state,
       set: (next) => this.setState(next),
@@ -148,7 +166,11 @@ export class MakerPerksMcpAgent extends McpAgent<Env, SessionState, UserProps> {
     }
 
     this.server = createMcpServer(
-      buildRouter(data, { sessionStore: store, profileStore, vaultCrypto: vault }),
+      buildRouter(data, flows, {
+        sessionStore: store,
+        profileStore,
+        vaultCrypto: vault,
+      }),
     );
   }
 }

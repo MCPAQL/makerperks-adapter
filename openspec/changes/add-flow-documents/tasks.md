@@ -28,13 +28,18 @@
 
 ## 2. Wire `getApplicationFlow` to the loaded overlay — #58
 
-- [ ] 2.1 `getApplicationFlow(program, flows)` uses `flows.curatedFor(slug)` (same `mergeFlow`);
-  remove the bundled `provider-flows.ts` constant import path
-- [ ] 2.2 Thread the `FlowSource` through `operations/flows.ts`, `operations/execute.ts`, and
-  `operations/handoff.ts` (preloaded via `ensureLoaded()` alongside `DataSource`); `buildRouter`
-  constructs it; `index.ts` / `worker.ts` / `worker-stateful.ts` wire `FLOWS_URL`
-- [ ] 2.3 Tests: flow ops + pipeline + handoff return identical results sourced from `flows.json`;
-  transport/op surface unchanged; both worker entries build
+- [x] 2.1 `getApplicationFlow(program, flows)` uses `flows.curatedFor(slug)` (same `mergeFlow`);
+  removed `ensureCuratedValid` + the bundled `provider-flows.ts` (deleted; validation now lives
+  in `FlowSource.load`)
+- [x] 2.2 Threaded the `FlowSource` through `operations/flows.ts` + `operations/execute.ts`
+  (preloaded via `ensureLoaded()` alongside `DataSource`; `handoff.ts` builds off the flow it's
+  handed); `buildApp`/`buildRouter` construct + thread it; `index.ts` (`MAKERPERKS_FLOWS`),
+  `worker.ts` + `worker-stateful.ts` (`FLOWS_URL`, cached per isolate) wire the source. Updated
+  `flows.test`/`gen-provider-flow-issues.mjs` off the deleted module
+- [x] 2.3 Tests: existing flow/pipeline/handoff suites pass unchanged sourced from `flows.json`;
+  a new `buildApp` test proves a `flowsSource` override changes the served flow (curated) while
+  an absent slug falls back to derived; **both worker entries build with `flows.json` inlined**
+  (verified by `wrangler deploy --dry-run`). 125 node:test + 6 vitest green
 
 ## 3. Validate + archive — #59
 

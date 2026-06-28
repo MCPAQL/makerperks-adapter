@@ -1,0 +1,18 @@
+{
+  "neon/neon-free-tier": {
+    "automatability": "manual_review",
+    "submission": {
+      "method": "web_form",
+      "action_url": "https://alt.example/apply",
+      "instructions": "Alt overlay used to prove flowsSource overrides the bundled default."
+    },
+    "required_inputs": [
+      { "key": "email", "type": "email", "required": true, "source": "profile" }
+    ],
+    "redemption": { "type": "manual_review" },
+    "danger_level": 1,
+    "gaps": ["alt overlay test fixture — not a real flow"],
+    "source": "https://alt.example/apply",
+    "verified": "2026-06-28"
+  }
+}

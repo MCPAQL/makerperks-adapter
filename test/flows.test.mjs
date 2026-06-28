@@ -6,7 +6,11 @@ import {
   mergeFlow,
   getApplicationFlow,
 } from "../dist/data/flows.js";
-import { curatedFlows } from "../dist/data/provider-flows.js";
+import { FlowSource } from "../dist/data/flow-source.js";
+
+// The loaded bundled overlay (flows.json) — the curated documents getApplicationFlow merges.
+const flows = new FlowSource();
+await flows.ensureLoaded();
 
 const base = (over) => ({
   slug: "x/y",
@@ -153,8 +157,8 @@ test("merge: curated wins per field, confidence flips, identity preserved", () =
   assert.deepEqual(merged.required_inputs, derived.required_inputs); // not overridden → baseline
 });
 
-test("the shipped curated overlay is valid", () => {
-  assert.deepEqual(collectCuratedFlowErrors(curatedFlows), []);
+test("the shipped curated overlay (flows.json) is valid", () => {
+  assert.deepEqual(collectCuratedFlowErrors(flows.all()), []);
 });
 
 test("getApplicationFlow: a seeded slug returns the curated (api) flow", () => {
@@ -167,6 +171,7 @@ test("getApplicationFlow: a seeded slug returns the curated (api) flow", () => {
       max_value: 200,
       audience: ["startup"],
     }),
+    flows,
   );
   assert.equal(f.confidence, "curated");
   assert.equal(f.automatability, "api");
@@ -177,6 +182,7 @@ test("getApplicationFlow: a seeded slug returns the curated (api) flow", () => {
 test("getApplicationFlow: an unseeded slug returns the derived baseline", () => {
   const f = getApplicationFlow(
     base({ slug: "nobody/nothing", value_type: "discount" }),
+    flows,
   );
   assert.equal(f.confidence, "derived");
   assert.equal(f.automatability, "web_only");
