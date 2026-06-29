@@ -47,6 +47,6 @@
 
 ## 3. Validate + archive
 
-- [ ] 3.1 `openspec validate add-operator-authorization --strict`; typecheck/lint/both test layers
-  green; update any op-count/parity assertions if touched.
-- [ ] 3.2 Archive into `openspec/specs/` (`operator-authorization` created); fill the spec `Purpose`.
+- [x] 3.1 `openspec validate add-operator-authorization --strict`; typecheck/lint/both test layers
+  green; update any op-count/parity assertions if touched. (No op count changed — gating is in-place.)
+- [x] 3.2 Archive into `openspec/specs/` (`operator-authorization` created); fill the spec `Purpose`.
