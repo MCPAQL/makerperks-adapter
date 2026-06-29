@@ -80,6 +80,29 @@ function deriveFeedId(source: string): string {
   }
 }
 
+/**
+ * Parse a multi-source env value (#88 deploy config) into a feed list. Two forms:
+ *  - a JSON array of feeds: `[{"id":"grants","source":"https://…/grants.json","prefix":"grants"}, …]`
+ *    (or bare strings in the array);
+ *  - a comma-separated list of URLs/paths: `https://a/perks.json, ./grants.json`.
+ * Returns `[]` for a blank value (the caller then falls back to a single source / the default).
+ */
+export function parseSourcesEnv(raw: string): (string | FeedConfig)[] {
+  const trimmed = raw.trim();
+  if (!trimmed) return [];
+  if (trimmed.startsWith("[")) {
+    const arr = JSON.parse(trimmed);
+    if (!Array.isArray(arr)) {
+      throw new Error("sources env JSON must be an array of feeds");
+    }
+    return arr as (string | FeedConfig)[];
+  }
+  return trimmed
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
 /** Normalize the configured feeds (sources, else single `source`, else the default) to FeedConfig[]. */
 function normalizeFeeds(opts: DataSourceOptions): Required<FeedConfig>[] {
   const raw = opts.sources?.length ? opts.sources : [opts.source ?? DEFAULT_SOURCE];

@@ -181,3 +181,33 @@ test("list_sources is introspectable as a READ op", async () => {
   assert.ok(op);
   assert.equal(op.semantic_category, "READ");
 });
+
+// ── parseSourcesEnv (deploy config) ──────────────────────────────────────────
+import { parseSourcesEnv } from "../dist/data/source.js";
+
+test("parseSourcesEnv: comma list, JSON array, and blank", () => {
+  assert.deepEqual(parseSourcesEnv(" https://a/perks.json, ./grants.json "), [
+    "https://a/perks.json",
+    "./grants.json",
+  ]);
+  assert.deepEqual(
+    parseSourcesEnv(
+      '[{"id":"grants","source":"https://x/grants.json","prefix":"grants"}]',
+    ),
+    [{ id: "grants", source: "https://x/grants.json", prefix: "grants" }],
+  );
+  assert.deepEqual(parseSourcesEnv("  "), []);
+});
+
+test("parseSourcesEnv: a comma-list env federates end to end", async () => {
+  const ds = new DataSource({
+    sources: parseSourcesEnv(`${A},${B}`),
+    fetchImpl: fetchFrom({
+      [A]: feed("Alpha", [prog("anthropic/x")]),
+      [B]: feed("Beta", [prog("grant/z")]),
+    }),
+  });
+  await ds.load();
+  assert.equal(ds.programs().length, 2);
+  assert.equal(ds.sources()[0].id, "a.example.com"); // bare URL → derived id
+});

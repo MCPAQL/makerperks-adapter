@@ -17,7 +17,7 @@ import OAuthProvider, {
 import { McpAgent } from "agents/mcp";
 import { buildRouter } from "./app.js";
 import { createMcpServer } from "./mcp.js";
-import { DataSource } from "./data/source.js";
+import { DataSource, parseSourcesEnv } from "./data/source.js";
 import { FlowSource } from "./data/flow-source.js";
 import {
   freshSessionState,
@@ -71,6 +71,8 @@ interface Env {
   // writes it here; the read-only worker reads it to serve blessed flows without a redeploy.
   OVERLAY_KV: KVNamespace;
   PERKS_URL?: string;
+  /** Many feeds to federate (#88) — JSON array of feeds or a comma list. Beats PERKS_URL. */
+  PERKS_URLS?: string;
   /** A flows.json URL for the curated overlay (#47); unset = the bundled default. */
   FLOWS_URL?: string;
   MCP_RATE_LIMITER: RateLimit;
@@ -117,7 +119,10 @@ function githubConfig(env: Env): GitHubOAuthConfig {
 let dataPromise: Promise<DataSource> | undefined;
 function getData(env: Env): Promise<DataSource> {
   dataPromise ??= (async () => {
-    const data = new DataSource(env.PERKS_URL ? { source: env.PERKS_URL } : {});
+    const sources = env.PERKS_URLS ? parseSourcesEnv(env.PERKS_URLS) : [];
+    const data = new DataSource(
+      sources.length ? { sources } : env.PERKS_URL ? { source: env.PERKS_URL } : {},
+    );
     await data.ensureLoaded();
     return data;
   })().catch((error) => {

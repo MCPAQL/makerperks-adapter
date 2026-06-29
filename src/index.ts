@@ -1,9 +1,11 @@
 // Entry point: select a transport at launch; both share one transport-agnostic core.
-// Config via env: MAKERPERKS_SOURCE (perks.json URL/path), MAKERPERKS_PORT (HTTP).
+// Config via env: MAKERPERKS_SOURCE (one perks.json URL/path) or MAKERPERKS_SOURCES (many,
+// federated — JSON array of feeds or a comma list); MAKERPERKS_FLOWS; MAKERPERKS_PORT (HTTP).
 
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { buildApp } from "./app.js";
+import { parseSourcesEnv } from "./data/source.js";
 import { inMemorySessionStore } from "./session/state.js";
 import { inMemoryProfileStore } from "./session/profile.js";
 import { vaultCrypto } from "./session/vault.js";
@@ -14,6 +16,10 @@ import { startHttp } from "./transports/http.js";
 async function main(): Promise<void> {
   const useHttp = process.argv.includes("--transport=http");
   const source = process.env.MAKERPERKS_SOURCE;
+  // MAKERPERKS_SOURCES (many feeds, federated) takes precedence over the single MAKERPERKS_SOURCE.
+  const sources = process.env.MAKERPERKS_SOURCES
+    ? parseSourcesEnv(process.env.MAKERPERKS_SOURCES)
+    : undefined;
   // A local single-process session gets in-memory stores — the EXECUTE pipeline and the
   // CRUDE maker profile (#34) run entirely on-device (the local personal-tool mode); the
   // profile never leaves the machine. The credential vault (#19) is encrypted at rest with a
@@ -22,7 +28,7 @@ async function main(): Promise<void> {
   const vaultKey = await loadLocalVaultKey(vaultDir);
   const flowsSource = process.env.MAKERPERKS_FLOWS; // a flows.json URL/path; unset = bundled
   const { router } = await buildApp({
-    ...(source ? { source } : {}),
+    ...(sources?.length ? { sources } : source ? { source } : {}),
     ...(flowsSource ? { flowsSource } : {}),
     sessionStore: inMemorySessionStore(),
     profileStore: inMemoryProfileStore(),

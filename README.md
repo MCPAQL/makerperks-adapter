@@ -58,6 +58,8 @@ public Worker, and the **stateful** Worker (real per-user OAuth, Durable Objects
   connector (claude.ai, Claude Code, Cursor, …). OAuth registers automatically.
 - **Local (stdio):** `npm install && npm run build`, then point your MCP client at
   `node dist/index.js`.
+- **Your own directory:** run it locally or self-host it and point it at **your own** feed(s)
+  (`perks.json`, `grants.json`, …) — see **[`docs/INSTALL.md`](docs/INSTALL.md)**.
 
 Then call `mcp_aql_read` with `{ "operation": "introspect" }` to discover the operations.
 
@@ -95,6 +97,7 @@ See [`docs/ROADMAP.md`](docs/ROADMAP.md) for the staged plan and current status.
 
 ## Documentation
 
+- [`docs/INSTALL.md`](docs/INSTALL.md) — install + point it at your own feed(s) + self-hosting
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — system model, the capability map, and
   diagrams (flow lifecycle, federation, the trust boundary)
 - [`docs/flows-roundtrip.md`](docs/flows-roundtrip.md) — the flows.json round-trip + the

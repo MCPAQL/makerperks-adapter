@@ -9,6 +9,7 @@ import OAuthProvider, { getOAuthApi } from "@cloudflare/workers-oauth-provider";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { buildApp } from "./app.js";
 import { createMcpServer } from "./mcp.js";
+import { parseSourcesEnv } from "./data/source.js";
 import { kvOverlayMirror, overlayReader } from "./session/overlay-mirror.js";
 import type { Router } from "./core/router.js";
 
@@ -20,6 +21,8 @@ interface RateLimit {
 interface Env {
   OAUTH_KV: KVNamespace;
   PERKS_URL?: string;
+  /** Many feeds to federate (#88) — JSON array of feeds or a comma list. Beats PERKS_URL. */
+  PERKS_URLS?: string;
   /** A flows.json URL for the curated overlay (#47); unset = the bundled default. */
   FLOWS_URL?: string;
   // SHARED overlay mirror (#87) — the operator-published accepted overlay (written by the stateful
@@ -33,8 +36,9 @@ interface Env {
 let routerPromise: Promise<Router> | undefined;
 
 function getRouter(env: Env): Promise<Router> {
+  const sources = env.PERKS_URLS ? parseSourcesEnv(env.PERKS_URLS) : [];
   routerPromise ??= buildApp({
-    ...(env.PERKS_URL ? { source: env.PERKS_URL } : {}),
+    ...(sources.length ? { sources } : env.PERKS_URL ? { source: env.PERKS_URL } : {}),
     ...(env.FLOWS_URL ? { flowsSource: env.FLOWS_URL } : {}),
     // Serve the operator-published accepted overlay (#87) when the mirror is bound. Read-only +
     // cached per isolate (TTL) inside the mirror — no per-request KV read (the 2026-06-28 lesson).
