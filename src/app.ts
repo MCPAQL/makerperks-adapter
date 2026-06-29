@@ -137,6 +137,7 @@ export function buildRouter(
       flows,
       options.sessionStore,
       options.profileStore,
+      options.vaultCrypto, // danger-tiered credential delivery into the submission package (#91)
     );
   }
   if (options.profileStore) {

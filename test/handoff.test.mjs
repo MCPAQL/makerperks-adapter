@@ -154,19 +154,19 @@ async function driveToSubmissionResult(slug) {
   return router.dispatch({ operation: "submit_step", params: { execution_id: id } }); // submission
 }
 
-test("submit_step on a non-api (manual_review) flow flags a handoff, not a simulated submit", async () => {
+test("submit_step on a non-api (manual_review) flow yields an application package (browser handoff)", async () => {
   const res = await driveToSubmissionResult(ANTHROPIC); // curated manual_review
   assert.equal(res.data.handoff_available, true);
-  assert.equal(res.data.simulated, false);
-  assert.match(res.data.did, /prepared web handoff/);
-  assert.match(res.data.next_step, /get_handoff/);
+  assert.ok(res.data.application_package);
+  assert.match(res.data.did, /application package/);
+  assert.match(res.data.next_step, /browser/);
 });
 
-test("submit_step on an api flow still returns a simulated submission (no handoff)", async () => {
+test("submit_step on an api flow returns an application package, no handoff flag", async () => {
   const res = await driveToSubmissionResult("neon/neon-free-tier"); // derived api
-  assert.equal(res.data.simulated, true);
+  assert.ok(res.data.application_package);
   assert.equal("handoff_available" in res.data, false);
-  assert.match(res.data.did, /SIMULATED submission/);
+  assert.match(res.data.did, /application package/);
 });
 
 // ── danger-tiered credential delivery in the application package (#91) ────────

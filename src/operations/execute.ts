@@ -1,10 +1,9 @@
-// CRUDE EXECUTE family — the (simulated) application pipeline. Registered ONLY when a
-// SessionStore is wired (stateful endpoint = Durable Object; stdio = in-memory; live
-// READ-only worker = not registered). Reachable via the `mcp_aql_execute` tool.
-//
-// §1 (this commit): start_application + get_status over the per-session store. submit_step
-// (the stage machine), confirmation tokens/halting, and the safety loop come in §2–§4.
-// See openspec/changes/add-application-pipeline (capability `application-pipeline`, #17).
+// CRUDE EXECUTE family — the application pipeline. Registered ONLY when a SessionStore is wired
+// (stateful endpoint = Durable Object; stdio = in-memory; live READ-only worker = not registered).
+// Reachable via the `mcp_aql_execute` tool. The CONNECTED AGENT performs the application with its
+// own tools; the server assembles the package, enforces the gates, and records the reported result
+// (#91) — it makes no external call and never drives a browser.
+// See openspec/changes/add-application-pipeline + add-live-application (capability `application-pipeline`).
 
 import { ok, err } from "../core/wire.js";
 import type { Router } from "../core/router.js";
@@ -20,10 +19,11 @@ import type {
   SessionStore,
 } from "../session/state.js";
 import { appendAudit } from "../session/profile.js";
-import type { ProfileStore, UserRecord } from "../session/profile.js";
-import { buildHandoff, profileInputs } from "./handoff.js";
+import type { ProfileStore, UserRecord, VaultEntry } from "../session/profile.js";
+import type { VaultCrypto } from "../session/vault.js";
+import { buildHandoff, buildApplicationPackage, profileInputs } from "./handoff.js";
 
-// The simulated lifecycle: each submit_step processes the current stage and advances one.
+// The application lifecycle: each submit_step processes the current stage and advances one.
 const NEXT_STAGE: Record<Exclude<ExecutionStage, "done">, ExecutionStage> = {
   eligibility: "assemble",
   assemble: "submission",
@@ -51,13 +51,16 @@ export function registerExecuteOperations(
   flows: FlowSource,
   store: SessionStore,
   profileStore?: ProfileStore,
+  // The credential vault (#91) — when wired, a danger ≤ 2 flow's credential is decrypted into the
+  // submission package for the agent; danger ≥ 3 never exposes it. Absent → credentials stay pending.
+  vault?: VaultCrypto,
 ): void {
   router.register({
     name: "start_application",
     semanticCategory: "EXECUTE",
     description:
-      "Begin a (simulated) application for a perk. Creates a session-scoped execution at " +
-      "the eligibility stage; advance it with submit_step and watch it with get_status.",
+      "Begin an application for a perk. Creates a session-scoped execution at the eligibility " +
+      "stage; advance it with submit_step and watch it with get_status.",
     params: {
       slug: {
         type: "string",
@@ -107,8 +110,10 @@ export function registerExecuteOperations(
     semanticCategory: "EXECUTE",
     description:
       "Advance an application by one stage (eligibility → assemble → submission → " +
-      "verification → redeem). Submission is SIMULATED (no external calls); web-only/manual " +
-      "providers produce a prepared handoff instead. Optionally pass `inputs` to assemble.",
+      "verification → redeem). At submission it returns an `application_package` for the connected " +
+      "agent to perform (an API request, or a browser flow it drives itself) — the server makes no " +
+      "external call. At verification, pass the agent's `result` to record the real outcome. " +
+      "Optionally pass `inputs` to assemble.",
     params: {
       execution_id: {
         type: "string",
@@ -131,13 +136,21 @@ export function registerExecuteOperations(
         type: "string",
         required: false,
         description:
-          "At submission, a vault credential id to use. SIMULATED — the plaintext is never " +
-          "decrypted or returned; the use is recorded by label and audited (#19).",
+          "At submission, a vault credential id to use. Danger-tiered (#91): a danger ≤ 2 flow has " +
+          "it decrypted into the application package for the agent; danger ≥ 3 is never exposed " +
+          "(stays out-of-band). The use is audited.",
+      },
+      result: {
+        type: "object",
+        required: false,
+        description:
+          "At verification, the outcome the agent performed: `{ ok: boolean, detail?, data? }`. " +
+          "Without it, the step reports it is awaiting the agent's result (it never asserts success).",
       },
     },
     returns:
-      "An object with the new `stage`, `status`, what this step `did` (`simulated: true`), " +
-      "any `missing_inputs`, and the `next_step`.",
+      "An object with the new `stage`, `status`, what this step `did`, the `application_package` " +
+      "(at submission), any `missing_inputs`, and the `next_step`.",
     handler: async (params) => {
       await data.ensureLoaded();
       const executionId = params.execution_id as string;
@@ -238,11 +251,12 @@ export function registerExecuteOperations(
         consumed = ct;
       }
 
-      // §4: at submission, an optional vault credential may be referenced by id. The use is
-      // SIMULATED — the plaintext is never decrypted or returned; we record it by label and
-      // append a per-user audit entry. Resolved here (after the gate) so it only happens on a
-      // real advance.
+      // At submission, an optional vault credential may be referenced by id (#91). It is resolved
+      // here (after the gate) so it only happens on a real advance; the package builder then opens
+      // it DANGER-TIERED (danger ≤ 2 only). We record a real audit reflecting whether it was exposed.
       let credentialLabel: string | undefined;
+      let credentialEntry: VaultEntry | undefined;
+      let credentialRec: UserRecord | undefined;
       let auditRecord: UserRecord | undefined;
       const credentialId = params.credential_id as string | undefined;
       if (execution.stage === "submission" && credentialId) {
@@ -258,17 +272,18 @@ export function registerExecuteOperations(
             credential_id: credentialId,
           });
         }
+        credentialEntry = entry;
         credentialLabel = `${entry.kind}:${entry.label}`;
-        auditRecord = appendAudit(
-          rec,
-          "use_credential",
-          `${credentialLabel} (simulated, not decrypted)`,
-        );
+        credentialRec = rec; // the audit is written once we know if it was actually exposed (below)
       }
 
       let missing: string[] = [];
       let filledFromProfile: string[] = [];
       let handoffAvailable = false;
+      let applicationPackage:
+        | Awaited<ReturnType<typeof buildApplicationPackage>>
+        | undefined;
+      let advance = true;
       let did: string;
       switch (execution.stage) {
         case "eligibility":
@@ -291,32 +306,59 @@ export function registerExecuteOperations(
           break;
         }
         case "submission": {
-          let base;
-          if (flow.automatability === "api") {
-            base =
-              `SIMULATED submission to ${flow.submission.action_url ?? "?"} ` +
-              `(method ${flow.submission.method}) with [${Object.keys(mergedInputs).join(", ")}]`;
-          } else {
-            // web_only / manual_review: not submitted in-pipeline — prepare a web handoff.
-            handoffAvailable = true;
-            base =
-              `prepared web handoff for ${flow.automatability} provider ` +
-              `${flow.submission.action_url ?? "?"} — call get_handoff for the package ` +
-              `(no in-pipeline submit; hand off to a browser-automation agent)`;
+          // Hand the agent a real application package to perform — the server makes no external call.
+          applicationPackage = await buildApplicationPackage(
+            flow,
+            { ...execution, inputs: mergedInputs },
+            userRecord?.profile,
+            { vault, credential: credentialEntry },
+          );
+          // Whether the credential was ACTUALLY opened into the package (danger ≤ 2 + a vault + a
+          // credential field to fill) — drives the audit + the log, so neither over-claims.
+          const credentialExposed = applicationPackage.assembled_inputs.some(
+            (i) => i.source === "credential",
+          );
+          if (credentialLabel && credentialRec) {
+            auditRecord = appendAudit(
+              credentialRec,
+              "use_credential",
+              `${credentialLabel} — ${credentialExposed ? "included in the application package" : "not exposed (held out-of-band)"}`,
+            );
           }
-          did = credentialLabel
-            ? `${base}; would inject credential ${credentialLabel} (simulated, not decrypted)`
-            : base;
+          handoffAvailable = flow.automatability !== "api"; // web/manual = a browser flow the agent drives
+          const verb =
+            flow.automatability === "api"
+              ? "perform the request"
+              : "complete it in a browser";
+          did =
+            `prepared the application package for ${flow.submission.action_url ?? "?"} — the agent should ${verb} ` +
+            `with the assembled inputs and report the outcome via submit_step (result)` +
+            (credentialLabel
+              ? `; credential ${credentialLabel} ${credentialExposed ? "included" : "held out-of-band"}`
+              : "");
           break;
         }
-        case "verification":
-          did = "SIMULATED verification (the provider would confirm)";
+        case "verification": {
+          const result = params.result as
+            | { ok?: boolean; detail?: string; data?: unknown }
+            | undefined;
+          if (!result) {
+            advance = false; // never assert success without the agent's reported result
+            did =
+              "awaiting the agent's result — perform the application, then call submit_step with result: { ok, detail? }";
+          } else if (result.ok === false) {
+            advance = false;
+            did = `application reported FAILED${result.detail ? `: ${result.detail}` : ""}`;
+          } else {
+            did = `recorded application result: success${result.detail ? ` — ${result.detail}` : ""}`;
+          }
           break;
+        }
         default: // redeem
-          did = "SIMULATED redeem + track";
+          did = "redeemed + tracked, per the agent's reported result";
       }
 
-      const nextStage = NEXT_STAGE[execution.stage];
+      const nextStage = advance ? NEXT_STAGE[execution.stage] : execution.stage;
       const status = nextStage === "done" ? "completed" : "running";
       const updated: Execution = {
         ...execution,
@@ -335,7 +377,7 @@ export function registerExecuteOperations(
             }
           : state.confirmationTokens,
       });
-      // Persist the per-user audit of the simulated credential use (separate from session state).
+      // Persist the per-user audit of the credential use (separate from session state).
       if (auditRecord && profileStore) await profileStore.set(auditRecord);
 
       return ok({
@@ -343,16 +385,17 @@ export function registerExecuteOperations(
         stage: nextStage,
         status,
         did,
-        // A non-API submission is a prepared handoff, not a simulated in-pipeline submission.
-        simulated: !handoffAvailable,
+        ...(applicationPackage ? { application_package: applicationPackage } : {}),
         ...(handoffAvailable ? { handoff_available: true } : {}),
         missing_inputs: missing,
         filled_from_profile: filledFromProfile,
-        next_step: handoffAvailable
-          ? "call get_handoff for the prepared package, then hand off to a browser-automation agent"
-          : nextStage === "done"
-            ? "completed"
-            : `call submit_step again to process ${nextStage}`,
+        next_step: applicationPackage
+          ? `${flow.automatability === "api" ? "perform the request from application_package" : "complete application_package in a browser"}, then call submit_step with result: { ok, detail? }`
+          : !advance
+            ? "perform the application, then call submit_step with result: { ok, detail? }"
+            : nextStage === "done"
+              ? "completed"
+              : `call submit_step again to process ${nextStage}`,
       });
     },
   });
@@ -410,11 +453,11 @@ export function registerExecuteOperations(
     name: "get_handoff",
     semanticCategory: "EXECUTE",
     description:
-      "Prepare a structured web handoff package for an execution (especially web_only / " +
-      "manual_review perks): the apply URL, instructions, assembled vs pending inputs (no " +
-      "secrets — credential fields stay pending for out-of-band supply), danger level, gaps, " +
-      "and an eligibility notice. For an external browser-automation agent; the adapter never " +
-      "drives a browser. Read-only.",
+      "Preview the application package for an execution (any flow — API or web): the apply URL, " +
+      "instructions, assembled vs pending inputs, danger level, gaps, and an eligibility notice. " +
+      "Secret-free — credential fields stay pending here (the live, danger-tiered credential is " +
+      "delivered by submit_step at submission, not by this preview). The agent performs the " +
+      "application; the adapter never drives a browser. Read-only.",
     params: {
       execution_id: {
         type: "string",

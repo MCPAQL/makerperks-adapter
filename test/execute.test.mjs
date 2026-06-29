@@ -77,9 +77,9 @@ test("executions are isolated per session store", async () => {
   assert.equal(inB.error.code, "NOT_FOUND_RESOURCE");
 });
 
-// --- §2: the simulated lifecycle ---
+// --- §2: the application lifecycle (the agent applies; the server packages + records) ---
 
-test("submit_step walks the full lifecycle to completed (simulated api submission)", async () => {
+test("submit_step walks the full lifecycle to completed (agent applies)", async () => {
   const { router } = await withStore();
   await router.dispatch({ operation: "set_autonomy", params: { mode: "full_auto" } });
   const started = await router.dispatch({
@@ -97,11 +97,24 @@ test("submit_step walks the full lifecycle to completed (simulated api submissio
   const s2 = await step({ email: "m@x.com", full_name: "Mick" }); // assemble → submission
   assert.equal(s2.data.stage, "submission");
   assert.deepEqual(s2.data.missing_inputs, []);
-  const s3 = await step(); // submission → verification
+
+  // submission → verification: the server hands the agent a real package, not a simulation
+  const s3 = await step();
   assert.equal(s3.data.stage, "verification");
-  assert.equal(s3.data.simulated, true);
-  assert.match(s3.data.did, /SIMULATED submission/);
-  assert.equal((await step()).data.stage, "redeem"); // verification → redeem
+  assert.ok(s3.data.application_package, "the agent receives an application package");
+  assert.equal(s3.data.application_package.action_url !== undefined, true);
+  assert.match(s3.data.did, /application package/);
+
+  // verification needs the agent's reported result to advance (never asserts success on its own)
+  const awaiting = await step();
+  assert.equal(awaiting.data.stage, "verification"); // no result → stays put
+  assert.match(awaiting.data.did, /awaiting the agent's result/);
+
+  const v = await router.dispatch({
+    operation: "submit_step",
+    params: { execution_id: id, result: { ok: true, detail: "applied" } },
+  });
+  assert.equal(v.data.stage, "redeem"); // result recorded → advance
   const done = await step(); // redeem → done
   assert.equal(done.data.stage, "done");
   assert.equal(done.data.status, "completed");
@@ -144,9 +157,9 @@ test("a web-only/manual provider yields a prepared handoff (after confirmation)"
     operation: "submit_step",
     params: { execution_id: id, confirmation_token: h.data.confirmation_token },
   });
-  assert.match(sub.data.did, /prepared web handoff/);
-  assert.match(sub.data.did, /get_handoff/);
-  assert.equal(sub.data.handoff_available, true);
+  assert.match(sub.data.did, /application package/);
+  assert.equal(sub.data.handoff_available, true); // web/manual → a browser flow the agent drives
+  assert.ok(sub.data.application_package);
 });
 
 test("get_status carries flow context", async () => {
@@ -215,7 +228,7 @@ test("resuming with the token proceeds past the gate exactly once", async () => 
     confirmation_token: h.data.confirmation_token,
   });
   assert.equal(resume.data.stage, "verification");
-  assert.match(resume.data.did, /prepared web handoff/);
+  assert.match(resume.data.did, /application package/);
 });
 
 test("a used token cannot be replayed", async () => {
@@ -326,7 +339,7 @@ test("full_auto runs a danger-2 submission without halting", async () => {
     await driveToSubmission(router, "anthropic/anthropic-startup-program"), // danger 2 → go
   );
   assert.equal(r.data.stage, "verification");
-  assert.match(r.data.did, /prepared web handoff/);
+  assert.match(r.data.did, /application package/);
 });
 
 // --- #18 §1: autonomy set/get ---

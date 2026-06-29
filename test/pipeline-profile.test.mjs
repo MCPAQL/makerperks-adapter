@@ -71,7 +71,7 @@ test("per-call inputs override profile-derived values", async () => {
   assert.equal(status.data.execution.inputs.full_name, "Mick"); // profile still fills the rest
 });
 
-test("a referenced vault credential at submission is gated, simulated, audited — never leaked", async () => {
+test("a referenced vault credential at submission is gated + audited; not exposed when the flow has no credential field", async () => {
   const { router } = await app();
   await d(router, "create_profile", {
     identity: { name: "Mick", email: "mick@x.test" },
@@ -94,20 +94,23 @@ test("a referenced vault credential at submission is gated, simulated, audited �
   const auditBefore = await d(router, "get_profile", { include_audit: true });
   assert.ok(!auditBefore.data.audit.some((e) => e.action === "use_credential"));
 
-  // Resume with the confirmation token — now the (simulated) use happens and is audited.
+  // Resume with the confirmation token — the credential use is now audited. neon's flow declares no
+  // credential field, so there is nothing to inject: the secret is NOT exposed (danger-tiered
+  // exposure into a real credential field is unit-tested at the builder level in handoff.test.mjs).
   const done = await d(router, "submit_step", {
     execution_id: id,
     confirmation_token: halt.data.confirmation_token,
     credential_id: credentialId,
   });
   assert.equal(done.data.stage, "verification");
-  assert.match(done.data.did, /would inject credential scoped_token:Neon API key/);
-  assert.ok(!JSON.stringify(done).includes("SUPER_SECRET_TOKEN")); // plaintext never returned
+  assert.match(done.data.did, /credential scoped_token:Neon API key held out-of-band/);
+  assert.ok(!JSON.stringify(done).includes("SUPER_SECRET_TOKEN")); // no field to inject → not leaked
 
   const auditAfter = await d(router, "get_profile", { include_audit: true });
   const use = auditAfter.data.audit.find((e) => e.action === "use_credential");
   assert.ok(use);
   assert.ok(use.detail.includes("Neon API key"));
+  assert.match(use.detail, /not exposed/);
   assert.ok(!use.detail.includes("SUPER_SECRET_TOKEN")); // audit logs the label, not the secret
 });
 

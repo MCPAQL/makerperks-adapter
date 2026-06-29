@@ -27,14 +27,14 @@
 
 ## 2. submit_step drives a real application
 
-- [ ] 2.1 `submit_step` **submission** stage: return the `application_package` (no `"SIMULATED"`);
+- [x] 2.1 `submit_step` **submission** stage: return the `application_package` (no `"SIMULATED"`);
   advance to `verification` (running). Keep the confirmation/danger halt path unchanged.
-- [ ] 2.2 `submit_step` **verification** stage: read a `result` param (`{ ok, detail?, data? }`) and
+- [x] 2.2 `submit_step` **verification** stage: read a `result` param (`{ ok, detail?, data? }`) and
   record it as the real outcome (absent → "awaiting the agent's result"); **redeem** reflects it.
   Real audit (drop "simulated, not decrypted" / "SIMULATED").
-- [ ] 2.3 Broaden `get_handoff` to the general application-package accessor (both flow shapes); update
+- [x] 2.3 Broaden `get_handoff` to the general application-package accessor (both flow shapes); update
   `submit_step` / op descriptions to the agent-executes model (no "SIMULATED").
-- [ ] 2.4 Tests: submission returns the package + advances to verification; verification records a
+- [x] 2.4 Tests: submission returns the package + advances to verification; verification records a
   reported `result`; a web flow still gets its handoff; danger ≥3 still halts for the out-of-band
   challenge; the full happy path completes with real (non-simulated) log + audit.
 
