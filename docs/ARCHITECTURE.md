@@ -25,9 +25,14 @@ Four things, layered, sharing one core:
 3. **Curate & publish (operator-gated)** — the proposed-flow review queue + acceptance
    dial (`accept_flow`, `set_acceptance_mode`), and `reconcile_flows` to publish accepted
    flows to the public endpoint. Plus federation + production of `perks.json` feeds.
-4. **Act (Stage 1)** — an **EXECUTE** pipeline (`start_application` → `submit_step` →
-   `get_status`) under a user-controlled autonomy switch, assembling from a per-user
-   profile + encrypted credential vault.
+4. **Act** — drive the actual signup under a user-controlled autonomy switch, assembling
+   from a per-user profile + encrypted credential vault. An **EXECUTE** pipeline
+   (`start_application` → `submit_step` → `get_status`) submits API-based flows directly;
+   for a flow with **no API**, the adapter supplies the discovered flow + assembled
+   application and the **connected agent** completes it with its own browser automation
+   (computer-use / browser-use) under the same guardrails — or, if the agent can't drive a
+   browser, a ready-to-finish prepared handoff. The adapter never runs a browser itself; it
+   provides the flow, the data, and the safety rails — the agent does the doing.
 
 ## 2. One core, three deployments
 

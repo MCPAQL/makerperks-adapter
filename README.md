@@ -110,14 +110,18 @@ Then call `mcp_aql_read` with `{ "operation": "introspect" }` to discover the op
   grants / college programs / camping slots …) into one directory, and emit a
   schema-valid feed of its own (`export_perks`) — a general opportunity-directory
   substrate, not just a MakerPerks app.
-- **Act on your behalf — with consent** — for programs that have an API, the adapter can
-  drive the actual signup: it assembles the application from your saved profile and an
-  encrypted credential vault, then submits it step by step under an **autonomy switch you
-  control** — *review every step*, *auto-submit low-risk steps*, or *full-auto within
-  limits*. It pauses for your approval before anything sensitive, routes payment /
-  real-identity steps to an out-of-band check, and never claims eligibility you don't have.
-  Programs with no API are handed off to an external browser-automation agent with
-  everything pre-filled.
+- **Act on your behalf — with consent** — the adapter can drive the actual signup **whether
+  or not the program has an API**. It assembles the application from your saved profile and
+  an encrypted credential vault and runs it under an **autonomy switch you control** (*review
+  every step* / *auto-submit low-risk* / *full-auto within limits*), pausing before anything
+  sensitive, routing payment / real-identity steps to an out-of-band check, and never
+  claiming eligibility you don't have. When there's an **API**, it submits directly. When
+  there **isn't**, it discovers the application flow and the connected agent carries it out
+  with its own **browser automation** (computer-use / browser-use) — same assembled data,
+  same guardrails. That's the superpower: no API required, as long as the flow is
+  discoverable and the agent can drive a browser. (If it can't, the pre-filled application is
+  a ready-to-finish handoff.) The adapter supplies the flow, the data, and the safety rails;
+  the agent supplies the doing.
 
 ## Status
 
