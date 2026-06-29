@@ -29,10 +29,10 @@
 
 ## 2. Export script + round-trip doc (#86)
 
-- [ ] 2.1 `scripts/export-flows.mjs` (dev tooling, never bundled): produce a `flows.json` from the
+- [x] 2.1 `scripts/export-flows.mjs` (dev tooling, never bundled): produce a `flows.json` from the
   effective overlay — load a `FlowSource` locally, and/or call the `export_flows` op against a
   configured deployment URL — and write it to a path. Eval-free, no provider SDK.
-- [ ] 2.2 Document the round-trip in `docs/` (or the README): export → external edit → host at
+- [x] 2.2 Document the round-trip in `docs/` (or the README): export → external edit → host at
   `FLOWS_URL` / commit the file → `FlowSource` ingests; note the runtime accepted overlay still
   layers on top until #87 reconciles it.
 
