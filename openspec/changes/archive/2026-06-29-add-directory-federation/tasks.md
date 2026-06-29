@@ -42,5 +42,5 @@
 
 ## 3. Validate + archive
 
-- [ ] 3.1 `openspec validate add-directory-federation --strict`; typecheck/lint/both test layers green.
-- [ ] 3.2 Archive into `openspec/specs/` (`directory-federation` created); fill the spec `Purpose`.
+- [x] 3.1 `openspec validate add-directory-federation --strict`; typecheck/lint/both test layers green.
+- [x] 3.2 Archive into `openspec/specs/` (`directory-federation` created); fill the spec `Purpose`.
