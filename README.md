@@ -110,21 +110,29 @@ Then call `mcp_aql_read` with `{ "operation": "introspect" }` to discover the op
   grants / college programs / camping slots …) into one directory, and emit a
   schema-valid feed of its own (`export_perks`) — a general opportunity-directory
   substrate, not just a MakerPerks app.
-- **Act (Stage 1)** — an EXECUTE pipeline drives real perk signups under a user-controlled
-  autonomy switch, with a per-user profile + encrypted credential vault.
+- **Act on your behalf — with consent** — for programs that have an API, the adapter can
+  drive the actual signup: it assembles the application from your saved profile and an
+  encrypted credential vault, then submits it step by step under an **autonomy switch you
+  control** — *review every step*, *auto-submit low-risk steps*, or *full-auto within
+  limits*. It pauses for your approval before anything sensitive, routes payment /
+  real-identity steps to an out-of-band check, and never claims eligibility you don't have.
+  Programs with no API are handed off to an external browser-automation agent with
+  everything pre-filled.
 
 ## Status
 
-The directory + dual transport + Cloudflare hosting + OAuth, the Stage-1 application
-pipeline + autonomy switch + profile/vault, and the Stage-2 flow arc (documents,
-discovery, acceptance, health, directory-status) are **done and archived**
-(`openspec/specs/`). The **portable-data epic** (multi-source federation, the operator
-trust model, flow/perks export, and reconcile-to-public) is **complete and deployed**.
+Everything described above is **built, tested, and deployed** — browsing and search, the
+discover-and-propose flow toolkit, operator-gated curation, multi-feed federation, feed
+production, and the consent-based signup pipeline (profile + encrypted vault + autonomy
+switch). Two endpoints are live:
 
-- **Live (read-only):** `https://makerperks.mcpaql.com`
-- **Live (stateful, per-user OAuth):** `https://makerperks-dev.mcpaql.com`
+- **Read-only (public, no login):** `https://makerperks.mcpaql.com`
+- **Stateful (per-user GitHub login):** `https://makerperks-dev.mcpaql.com`
 
-See [`docs/ROADMAP.md`](docs/ROADMAP.md) for the staged plan and current status.
+Every capability is specified and validated under [`openspec/specs/`](openspec/specs/), with
+200+ automated tests passing. **Still ahead:** broader provider coverage, a contribution
+pipeline back to the upstream directory, and anti-abuse limits — see
+[`docs/ROADMAP.md`](docs/ROADMAP.md) for the full plan.
 
 ## Documentation
 
