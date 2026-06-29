@@ -42,8 +42,8 @@ server exposes all five.)
 
 Beyond reading, the adapter is a **substrate for action and curation**: agents discover
 and propose application *flows*, an **operator** accepts them, the directory federates
-**many** opportunity feeds, and the server can **produce** feeds too — all under a
-zero-trust model where the server never acts on anyone's behalf.
+**many** opportunity feeds, and the server can **produce** feeds too — with safety checks
+throughout, and it only ever acts **with your permission, on your behalf**.
 
 ## System at a glance
 
@@ -102,8 +102,10 @@ flowchart TB
 - **Model-agnostic flow discovery** — the server hands a connected agent a research
   scaffold and the safety gates; the *agent* supplies the intelligence. No model or
   provider SDK is baked in.
-- **Zero-trust curation** — anyone may propose, only an operator accepts and publishes, and
-  the server itself never writes anything outbound (no PRs, no stored write-credentials).
+- **Curation that can't be vandalized** — anyone may propose a change, but only a trusted
+  operator can accept and publish it, so untrusted input can't damage the shared directory.
+  Publishing back to an upstream source is always operator-driven — the server never opens
+  pull requests or edits anyone's repository on its own.
 - **A federating, producing substrate** — point it at many feeds (perks, grants, programs,
   camping slots, …); it can also *generate* a feed of its own, which round-trips back in as
   a source.
