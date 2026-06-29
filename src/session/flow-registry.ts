@@ -8,6 +8,7 @@
 
 import type { CuratedFlow, CuratedFlows } from "../data/flows.js";
 import type { ProposalVerdict } from "../data/discovery.js";
+import type { AcceptedOverlay } from "./overlay-mirror.js";
 
 export type ProposalKind = "flow"; // "service" later (#35) — the queue machinery is generic
 export type ProposalStatus = "pending" | "accepted" | "rejected";
@@ -65,7 +66,7 @@ export function applyProposalFilter(
  * in-memory impl backs local mode + tests. Acceptance gating (verdict + danger floors) lives in
  * the OPERATION layer, not here — the store just persists and, on accept, publishes the overlay.
  */
-export interface FlowRegistry {
+export interface FlowRegistry extends AcceptedOverlay {
   mode(): Promise<AcceptanceMode>;
   setMode(mode: AcceptanceMode): Promise<void>;
   /** Create or replace a proposal (CREATE / UPDATE of a pending one). */

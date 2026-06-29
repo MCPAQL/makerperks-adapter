@@ -21,6 +21,7 @@ import type { SessionStore } from "./session/state.js";
 import type { ProfileStore } from "./session/profile.js";
 import type { VaultCrypto } from "./session/vault.js";
 import type { FlowRegistry } from "./session/flow-registry.js";
+import type { AcceptedOverlay } from "./session/overlay-mirror.js";
 
 export interface AppOptions extends DataSourceOptions {
   /** A flows.json URL or file path for the curated overlay (#47). Unset = the bundled default. */
@@ -33,6 +34,12 @@ export interface AppOptions extends DataSourceOptions {
   vaultCrypto?: VaultCrypto;
   /** When present, the shared proposed-flow review queue + acceptance dial is registered (#47 D). */
   flowRegistry?: FlowRegistry;
+  /**
+   * A serving-only accepted overlay (#87) for a deployment WITHOUT a registry — the read-only worker
+   * passes a KV-mirror-backed overlay so it serves operator-blessed flows. Ignored when a
+   * `flowRegistry` is wired (the live registry is the overlay).
+   */
+  acceptedOverlay?: AcceptedOverlay;
   /** The authenticated subject, stamped onto proposals as `proposed_by` (#73 attribution). */
   proposer?: string;
   /**
@@ -49,6 +56,7 @@ interface RouterStores {
   profileStore?: ProfileStore;
   vaultCrypto?: VaultCrypto;
   flowRegistry?: FlowRegistry;
+  acceptedOverlay?: AcceptedOverlay;
   proposer?: string;
   operator?: boolean;
 }
@@ -60,33 +68,31 @@ export function buildRouter(
   options: RouterStores = {},
 ): Router {
   const router = new Router();
+  // The accepted overlay the SERVING ops consult: the live registry when wired (#47 piece D), else a
+  // serving-only overlay (#87 — the read-only worker's KV mirror). The registry wins when both are
+  // present (it is the live layer); the read-only worker passes only the mirror.
+  const servingOverlay = options.flowRegistry ?? options.acceptedOverlay;
   // The listing ops honor the per-user status policy when a profile store is wired (#36); absent it
   // (the read-only endpoint) the DEFAULT policy excludes nothing.
   registerReadOperations(router, data, options.profileStore);
-  // The flow-serving ops consult the accepted overlay when a registry is wired (#47 piece D), so
-  // accepted flows are served live; absent it, serving is unchanged.
-  registerFlowOperations(
-    router,
-    data,
-    flows,
-    options.flowRegistry,
-    options.profileStore,
-  );
+  // The flow-serving ops consult the accepted overlay so blessed flows are served (live on the
+  // stateful side, the published mirror on the read-only side); absent it, serving is unchanged.
+  registerFlowOperations(router, data, flows, servingOverlay, options.profileStore);
   // Flow-discovery toolkit (#47 piece C) — model-free READ ops over data + flows; available on
   // every deployment (the agent above supplies the model + web). The optional profile store lets
-  // the entry point also consult per-user flow health (piece B); the optional registry lets it
-  // serve accepted flows (piece D).
+  // the entry point also consult per-user flow health (piece B); the overlay lets it serve accepted
+  // flows (piece D / #87).
   registerFlowDiscoveryOperations(
     router,
     data,
     flows,
     options.profileStore,
-    options.flowRegistry,
+    servingOverlay,
   );
   // Flow-export (#84 / #85) — the read-out half of the flows.json round-trip; emits the effective
   // overlay (loaded flows.json ⊕ accepted overlay). Read-only and available on every deployment;
-  // without a registry (the read-only endpoint) it exports just the loaded overlay.
-  registerFlowExportOperations(router, flows, options.flowRegistry);
+  // without an overlay (a bare deployment) it exports just the loaded overlay.
+  registerFlowExportOperations(router, flows, servingOverlay);
   // Flow-acceptance toolkit (#47 piece D) — the shared proposed-flow review queue + acceptance
   // dial; registered only where a shared FlowRegistry is wired (local + the stateful endpoint).
   if (options.flowRegistry) {
@@ -135,6 +141,7 @@ export async function buildApp(
     profileStore,
     vaultCrypto,
     flowRegistry,
+    acceptedOverlay,
     proposer,
     operator,
     ...dataOptions
@@ -147,6 +154,7 @@ export async function buildApp(
     profileStore,
     vaultCrypto,
     flowRegistry,
+    acceptedOverlay,
     proposer,
     operator,
   });

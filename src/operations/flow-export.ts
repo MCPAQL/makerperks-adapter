@@ -11,14 +11,15 @@ import { ok } from "../core/wire.js";
 import type { Router } from "../core/router.js";
 import type { FlowSource } from "../data/flow-source.js";
 import type { CuratedFlows } from "../data/flows.js";
-import type { FlowRegistry } from "../session/flow-registry.js";
+import type { AcceptedOverlay } from "../session/overlay-mirror.js";
 
 export function registerFlowExportOperations(
   router: Router,
   flows: FlowSource,
-  // Optional acceptance registry (#47 piece D / #64): when wired, the accepted overlay is merged in
-  // (accepted wins) and those slugs are sourced "accepted". Without it, export is the loaded overlay.
-  registry?: FlowRegistry,
+  // Optional accepted overlay (#47 piece D / #64): the live registry on the stateful side, or a
+  // KV-mirror-backed overlay on the read-only side (#87). When wired, the accepted overlay is merged
+  // in (accepted wins) and those slugs are sourced "accepted". Without it, export is the loaded overlay.
+  registry?: AcceptedOverlay,
 ): void {
   router.register({
     name: "export_flows",

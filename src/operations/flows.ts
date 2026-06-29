@@ -9,7 +9,7 @@ import type { Router } from "../core/router.js";
 import type { DataSource } from "../data/source.js";
 import type { FlowSource } from "../data/flow-source.js";
 import { getApplicationFlow, freshness, type Automatability } from "../data/flows.js";
-import type { FlowRegistry } from "../session/flow-registry.js";
+import type { AcceptedOverlay } from "../session/overlay-mirror.js";
 import type { ProfileStore } from "../session/profile.js";
 import { effectiveStatusPolicy } from "../data/status.js";
 
@@ -19,9 +19,10 @@ export function registerFlowOperations(
   router: Router,
   data: DataSource,
   flows: FlowSource,
-  // When a registry is wired (#47 piece D), accepted flows override the flows.json overlay in the
-  // served result; absent it, serving is unchanged.
-  registry?: FlowRegistry,
+  // When an accepted overlay is wired (#47 piece D), accepted flows override the flows.json overlay
+  // in the served result — the live registry (stateful) or the KV mirror (read-only, #87). Absent
+  // it, serving is unchanged.
+  registry?: AcceptedOverlay,
   // When a per-user store is wired (#36 add-directory-status), list_application_flows honors that
   // user's status policy (excluded statuses omitted unless include_inactive).
   store?: ProfileStore,

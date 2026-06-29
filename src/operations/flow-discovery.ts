@@ -19,7 +19,7 @@ import { getApplicationFlow, freshness, type CuratedFlow } from "../data/flows.j
 import { statusProposalCheck } from "../data/status.js";
 import { REDISCOVER_AFTER } from "./flow-health.js";
 import type { ProfileStore } from "../session/profile.js";
-import type { FlowRegistry } from "../session/flow-registry.js";
+import type { AcceptedOverlay } from "../session/overlay-mirror.js";
 
 export function registerFlowDiscoveryOperations(
   router: Router,
@@ -28,8 +28,9 @@ export function registerFlowDiscoveryOperations(
   // Optional per-user store: when wired, the entry point also consults piece-B flow health to
   // recommend re-discovery on a failing flow. Without it, the entry point uses freshness alone.
   store?: ProfileStore,
-  // Optional acceptance registry (#47 piece D): when wired, accepted flows are the served truth.
-  registry?: FlowRegistry,
+  // Optional accepted overlay (#47 piece D): when wired, accepted flows are the served truth — the
+  // live registry (stateful) or the KV mirror (read-only, #87).
+  registry?: AcceptedOverlay,
 ): void {
   router.register({
     name: "get_discovery_brief",
