@@ -52,6 +52,7 @@ import {
   policyNeedsRepoScope,
   resolveOperator,
 } from "./session/operator.js";
+import { kvOverlayMirror } from "./session/overlay-mirror.js";
 import type { Server } from "@modelcontextprotocol/sdk/server/index.js";
 
 // Cloudflare Workers Rate Limiting binding (per-IP backstop against abuse / runaway clients).
@@ -66,6 +67,9 @@ interface Env {
   PROFILE_OBJECT: DurableObjectNamespace<MakerProfileDO>;
   // SHARED proposed-flow registry (#47 piece D). A SINGLE named instance for the whole deployment.
   REGISTRY_OBJECT: DurableObjectNamespace<FlowRegistryDO>;
+  // SHARED overlay mirror (#87) — the published accepted overlay both workers read. reconcile_flows
+  // writes it here; the read-only worker reads it to serve blessed flows without a redeploy.
+  OVERLAY_KV: KVNamespace;
   PERKS_URL?: string;
   /** A flows.json URL for the curated overlay (#47); unset = the bundled default. */
   FLOWS_URL?: string;
@@ -207,6 +211,9 @@ export class MakerPerksMcpAgent extends McpAgent<Env, SessionState, UserProps> {
         profileStore,
         vaultCrypto: vault,
         flowRegistry,
+        // The shared overlay mirror (#87) — reconcile_flows publishes the accepted overlay here for
+        // the read-only endpoint to serve. Operator-gated by the same flag as accept.
+        overlayMirror: kvOverlayMirror(this.env.OVERLAY_KV),
         proposer: userId, // attribute proposals to the authenticated subject (#73)
         operator: this.props?.isOperator ?? false, // operator-gated acceptance (#90); fail safe
       }),

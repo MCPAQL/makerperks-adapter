@@ -9,6 +9,9 @@
   "routes": [{ "pattern": "makerperks.mcpaql.com", "custom_domain": true }],
   "kv_namespaces": [
     { "binding": "OAUTH_KV", "id": "609312bdeb5e4379afe0b61bd123a1a8" },
+    // SHARED overlay mirror (#87) — same namespace the stateful worker's reconcile_flows writes to;
+    // this read-only endpoint reads it to serve operator-blessed flows (no redeploy).
+    { "binding": "OVERLAY_KV", "id": "486d676413c145a7bb5c81553960d611" },
   ],
   // Per-IP rate-limit backstop (anti-abuse / anti-loop). 100 requests / 10s per IP.
   "ratelimits": [

@@ -9,6 +9,7 @@ import OAuthProvider, { getOAuthApi } from "@cloudflare/workers-oauth-provider";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { buildApp } from "./app.js";
 import { createMcpServer } from "./mcp.js";
+import { kvOverlayMirror, overlayReader } from "./session/overlay-mirror.js";
 import type { Router } from "./core/router.js";
 
 // Cloudflare Workers Rate Limiting binding (per-IP backstop against abuse / runaway clients).
@@ -21,6 +22,9 @@ interface Env {
   PERKS_URL?: string;
   /** A flows.json URL for the curated overlay (#47); unset = the bundled default. */
   FLOWS_URL?: string;
+  // SHARED overlay mirror (#87) — the operator-published accepted overlay (written by the stateful
+  // worker's reconcile_flows). This read-only endpoint reads it to serve blessed flows, no redeploy.
+  OVERLAY_KV?: KVNamespace;
   MCP_RATE_LIMITER: RateLimit;
 }
 
@@ -32,6 +36,11 @@ function getRouter(env: Env): Promise<Router> {
   routerPromise ??= buildApp({
     ...(env.PERKS_URL ? { source: env.PERKS_URL } : {}),
     ...(env.FLOWS_URL ? { flowsSource: env.FLOWS_URL } : {}),
+    // Serve the operator-published accepted overlay (#87) when the mirror is bound. Read-only +
+    // cached per isolate (TTL) inside the mirror — no per-request KV read (the 2026-06-28 lesson).
+    ...(env.OVERLAY_KV
+      ? { acceptedOverlay: overlayReader(kvOverlayMirror(env.OVERLAY_KV)) }
+      : {}),
   }).then((app) => app.router);
   return routerPromise;
 }

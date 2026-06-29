@@ -28,17 +28,18 @@
 
 ## 2. reconcile_flows op + worker wiring + binding
 
-- [ ] 2.1 `operations/flow-reconcile.ts`: `registerFlowReconcileOperations(router, registry, mirror,
+- [x] 2.1 `operations/flow-reconcile.ts`: `registerFlowReconcileOperations(router, registry, mirror,
   operator)` → `reconcile_flows` (UPDATE): `FORBIDDEN` for non-operators, else
   `overlay = await registry.accepted(); await mirror.write(overlay)`; return `{ count, slugs }`.
-- [ ] 2.2 `buildRouter`: add `overlayMirror?`; register reconcile when `flowRegistry && overlayMirror`.
-- [ ] 2.3 `worker-stateful.ts`: bind `OVERLAY_KV`; wire `overlayMirror = kvOverlayMirror(env.OVERLAY_KV)`.
+- [x] 2.2 `buildRouter`: add `overlayMirror?`; register reconcile when `flowRegistry && overlayMirror`.
+- [x] 2.3 `worker-stateful.ts`: bind `OVERLAY_KV`; wire `overlayMirror = kvOverlayMirror(env.OVERLAY_KV)`.
   `worker.ts` (read-only): bind `OVERLAY_KV`; wire `acceptedOverlay = overlayReader(kvOverlayMirror(...))`,
-  cached per isolate. Add the `OVERLAY_KV` binding to `wrangler.jsonc` + `wrangler.dev.jsonc`
-  (namespace created out-of-band; note the id).
-- [ ] 2.4 Tests: a non-operator `reconcile_flows` → `FORBIDDEN`, mirror unchanged; an operator
-  reconcile writes the accepted overlay to the mirror and returns the count/slugs; update op-count /
-  parity assertions for `reconcile_flows`.
+  cached per isolate. `OVERLAY_KV` namespace created (`486d6764…`), bound in both `wrangler.jsonc` +
+  `wrangler.dev.jsonc` (one shared namespace).
+- [x] 2.4 Tests: reconcile registers only with registry + mirror; a non-operator `reconcile_flows` →
+  `FORBIDDEN`, mirror unchanged; an operator reconcile writes the accepted overlay + returns
+  count/slugs; empty-accepted reconciles to empty. (No op-count/parity assertion touched — reconcile
+  registers only on a registry+mirror build, which those tests don't use.)
 
 ## 3. Export-to-PR workflow + MIT extract; validate + archive
 

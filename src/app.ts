@@ -14,6 +14,7 @@ import { registerFlowHealthOperations } from "./operations/flow-health.js";
 import { registerFlowDiscoveryOperations } from "./operations/flow-discovery.js";
 import { registerFlowAcceptanceOperations } from "./operations/flow-acceptance.js";
 import { registerFlowExportOperations } from "./operations/flow-export.js";
+import { registerFlowReconcileOperations } from "./operations/flow-reconcile.js";
 import { registerStatusOperations } from "./operations/status.js";
 import { DataSource, type DataSourceOptions } from "./data/source.js";
 import { FlowSource } from "./data/flow-source.js";
@@ -21,7 +22,7 @@ import type { SessionStore } from "./session/state.js";
 import type { ProfileStore } from "./session/profile.js";
 import type { VaultCrypto } from "./session/vault.js";
 import type { FlowRegistry } from "./session/flow-registry.js";
-import type { AcceptedOverlay } from "./session/overlay-mirror.js";
+import type { AcceptedOverlay, OverlayMirror } from "./session/overlay-mirror.js";
 
 export interface AppOptions extends DataSourceOptions {
   /** A flows.json URL or file path for the curated overlay (#47). Unset = the bundled default. */
@@ -40,6 +41,11 @@ export interface AppOptions extends DataSourceOptions {
    * `flowRegistry` is wired (the live registry is the overlay).
    */
   acceptedOverlay?: AcceptedOverlay;
+  /**
+   * The shared overlay mirror (#87) — the publish target for `reconcile_flows`. With a `flowRegistry`,
+   * registers the operator-gated reconcile op (the stateful worker). Unset = no reconcile.
+   */
+  overlayMirror?: OverlayMirror;
   /** The authenticated subject, stamped onto proposals as `proposed_by` (#73 attribution). */
   proposer?: string;
   /**
@@ -57,6 +63,7 @@ interface RouterStores {
   vaultCrypto?: VaultCrypto;
   flowRegistry?: FlowRegistry;
   acceptedOverlay?: AcceptedOverlay;
+  overlayMirror?: OverlayMirror;
   proposer?: string;
   operator?: boolean;
 }
@@ -105,6 +112,17 @@ export function buildRouter(
       options.profileStore,
       options.operator ?? false, // fail safe: no resolved operator status => not an operator
     );
+    // Flow-reconcile (#87) — the operator-gated publish of the accepted overlay to the shared
+    // mirror. Needs both the registry (to read) and a mirror (to write); the stateful worker wires
+    // both. Local/in-memory deployments without a mirror simply don't register it.
+    if (options.overlayMirror) {
+      registerFlowReconcileOperations(
+        router,
+        options.flowRegistry,
+        options.overlayMirror,
+        options.operator ?? false,
+      );
+    }
   }
   if (options.sessionStore) {
     // The pipeline assembles from the maker profile when one is wired (§4); the profile store
@@ -142,6 +160,7 @@ export async function buildApp(
     vaultCrypto,
     flowRegistry,
     acceptedOverlay,
+    overlayMirror,
     proposer,
     operator,
     ...dataOptions
@@ -155,6 +174,7 @@ export async function buildApp(
     vaultCrypto,
     flowRegistry,
     acceptedOverlay,
+    overlayMirror,
     proposer,
     operator,
   });
