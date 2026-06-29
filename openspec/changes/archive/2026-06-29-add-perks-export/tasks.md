@@ -23,7 +23,7 @@
 
 ## 2. Export script + validate + archive
 
-- [ ] 2.1 `scripts/export-perks.mjs` (dev tooling): write a `perks.json` from the data layer (local)
+- [x] 2.1 `scripts/export-perks.mjs` (dev tooling): write a `perks.json` from the data layer (local)
   and/or the `export_perks` op (`--url`), peer to `export-flows.mjs`.
-- [ ] 2.2 `openspec validate add-perks-export --strict`; typecheck/lint/both test layers green.
-- [ ] 2.3 Archive into `openspec/specs/` (`perks-export` created); fill the spec `Purpose`.
+- [x] 2.2 `openspec validate add-perks-export --strict`; typecheck/lint/both test layers green.
+- [x] 2.3 Archive into `openspec/specs/` (`perks-export` created); fill the spec `Purpose`.
