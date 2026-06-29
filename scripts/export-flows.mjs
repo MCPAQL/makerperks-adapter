@@ -15,6 +15,10 @@
 //   node scripts/export-flows.mjs --source ./my-flows.json --out ./flows.json
 //   FLOWS_URL=https://… node scripts/export-flows.mjs      # local, from a hosted overlay
 //   node scripts/export-flows.mjs --url https://makerperks-dev.mcpaql.com/mcp --out ./flows.json
+//   node scripts/export-flows.mjs --mit --out ./perks-flows.json   # MIT-safe data subset (#87)
+//
+// --mit emits only the MIT-safe "how to apply" fields (submission / required_inputs / redemption /
+// source / verified), for a data-only PR upstream to Nate's MIT directory (no AGPL agent model).
 //
 // Requires a prior `npm run build` (reads dist/). Eval-free; no provider SDK.
 
@@ -28,14 +32,36 @@ const flag = (name) => {
 const out = flag("--out") ?? "flows.export.json";
 const url = flag("--url");
 const source = flag("--source") ?? process.env.FLOWS_URL;
+const mit = args.includes("--mit");
+
+// The MIT-safe "how to apply" data subset of a Flow Document — what may cross into Nate's MIT
+// directory (#87). Keeps the application steps; drops the adapter's agent-automation model
+// (automatability / danger_level / gaps), which is specific to this AGPL adapter.
+const MIT_FIELDS = [
+  "submission",
+  "required_inputs",
+  "redemption",
+  "source",
+  "verified",
+];
+const toMit = (flows) =>
+  Object.fromEntries(
+    Object.entries(flows).map(([slug, doc]) => [
+      slug,
+      Object.fromEntries(
+        MIT_FIELDS.filter((k) => doc[k] !== undefined).map((k) => [k, doc[k]]),
+      ),
+    ]),
+  );
 
 /** Write the merged overlay + report a small source breakdown summary. */
-function emit(flows, sources) {
+function emit(rawFlows, sources) {
+  const flows = mit ? toMit(rawFlows) : rawFlows;
   writeFileSync(out, JSON.stringify(flows, null, 2) + "\n");
   const slugs = Object.keys(flows);
   const accepted = sources ? slugs.filter((s) => sources[s] === "accepted").length : 0;
   console.log(
-    `Wrote ${slugs.length} flow(s) to ${out}` +
+    `Wrote ${slugs.length}${mit ? " MIT-safe" : ""} flow(s) to ${out}` +
       (sources ? ` (${slugs.length - accepted} base, ${accepted} accepted).` : "."),
   );
 }

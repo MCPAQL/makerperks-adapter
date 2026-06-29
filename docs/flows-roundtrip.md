@@ -48,13 +48,44 @@ The inbound path already exists. After editing the exported file:
 `FlowSource` validates the overlay with the eval-free payload checker and **fails loud** on a
 schema-invalid collection, so a bad edit is rejected rather than served.
 
-## Caveat — the accepted overlay is not yet reconciled into the file
+## The operator workflow — publish blessed flows + contribute upstream
 
-Re-publishing an edited file replaces the **loaded** overlay. The runtime **accepted** overlay still
-layers on top of it (accepted wins), so an externally-published `flows.json` does **not** override an
-accepted entry for the same slug until that accepted change is reconciled back into the durable
-file. Making the file the single durable source of truth — a writable overlay store vs. a PR/commit
-to `flows.json` — is [#87](https://github.com/MCPAQL/makerperks-adapter/issues/87).
+On a hosted, multi-user deployment, **users propose and an operator accepts** (see the
+`operator-authorization` capability, #90). Accepting serves a flow live on the *stateful* endpoint
+immediately (the registry Durable Object). Two further, **operator-only**, deliberate steps make
+that flow durable and public:
+
+1. **Publish to the read-only endpoint — `reconcile_flows`.** Flushes the accepted overlay into a
+   shared KV mirror that the read-only public endpoint (`makerperks.mcpaql.com`) reads, so it serves
+   the blessed flows **with no redeploy**. The Durable Object stays the always-live layer on the
+   stateful side; `reconcile_flows` is the deliberate "make it public" step (an operator running it,
+   not an automatic effect of accepting). Non-operators get `FORBIDDEN`.
+
+2. **Contribute upstream — operator-run, never the server.** The server holds **no GitHub write
+   credential** and opens no PR. The operator pulls the effective overlay and opens one PR with their
+   own `gh`:
+
+   ```sh
+   # MIT-safe, data-only subset (application steps; drops the AGPL adapter's agent model)
+   node scripts/export-flows.mjs --url https://makerperks-dev.mcpaql.com/mcp --mit --out perks-flows.json
+   # ...review, then a single deduplicated PR to Nate's MIT directory:
+   gh pr create --repo natea/makerperks ...
+   ```
+
+   `--mit` keeps `submission` / `required_inputs` / `redemption` / `source` / `verified` and drops
+   `automatability` / `danger_level` / `gaps`, so only MIT-safe data crosses into the MIT directory
+   (no AGPL). This is the one curated PR — not one-per-user, not server-generated.
+
+## Precedence — where the accepted overlay lives
+
+Re-publishing an edited file replaces the **loaded base** overlay; the **accepted** overlay layers on
+top (accepted wins). As of [#87](https://github.com/MCPAQL/makerperks-adapter/issues/87) the accepted
+overlay is durable in two places: live in the registry Durable Object (stateful endpoint), and — once
+an operator runs `reconcile_flows` — in the shared KV mirror the read-only endpoint serves. The
+committed `flows.json` **file** is still updated only by the deliberate operator PR above (export →
+`--mit` → `gh`), so the file remains the human-reviewed, versioned artifact rather than a thing the
+server writes. An externally-published base file does not override an accepted entry for the same slug
+until that accept is itself curated into the file via a PR.
 
 ## License boundary
 

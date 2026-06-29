@@ -43,9 +43,10 @@
 
 ## 3. Export-to-PR workflow + MIT extract; validate + archive
 
-- [ ] 3.1 `scripts/export-flows.mjs`: add `--mit` — strip each Flow Document to its MIT-safe data
-  (application steps / submission / instructions), for a data-only upstream PR.
-- [ ] 3.2 `docs/flows-roundtrip.md`: add the operator workflow — accept → `reconcile_flows` (public
-  serves it) → `export_flows` → `--mit` → one `gh pr create` upstream; reaffirm the server opens no PR.
-- [ ] 3.3 `openspec validate add-flow-reconcile --strict`; typecheck/lint/both test layers green.
-- [ ] 3.4 Archive into `openspec/specs/` (`flow-reconcile` created); fill the spec `Purpose`.
+- [x] 3.1 `scripts/export-flows.mjs`: add `--mit` — strip each Flow Document to its MIT-safe data
+  (`submission` / `required_inputs` / `redemption` / `source` / `verified`; drops the agent model),
+  for a data-only upstream PR.
+- [x] 3.2 `docs/flows-roundtrip.md`: add the operator workflow — accept → `reconcile_flows` (public
+  serves it) → `export_flows --mit` → one `gh pr create` upstream; reaffirm the server opens no PR.
+- [x] 3.3 `openspec validate add-flow-reconcile --strict`; typecheck/lint/both test layers green.
+- [x] 3.4 Archive into `openspec/specs/` (`flow-reconcile` created); fill the spec `Purpose`.
