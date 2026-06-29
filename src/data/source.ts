@@ -105,7 +105,7 @@ function isStringArray(v: unknown): v is string[] {
 }
 
 /** Collect human-readable validation errors for the published perks.json payload. */
-function collectPayloadErrors(data: unknown): string[] {
+export function collectPayloadErrors(data: unknown): string[] {
   const errors: string[] = [];
   if (!isObject(data)) return ["/ payload must be an object"];
   if (typeof data.name !== "string") errors.push("/name must be a string");

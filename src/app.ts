@@ -15,6 +15,7 @@ import { registerFlowDiscoveryOperations } from "./operations/flow-discovery.js"
 import { registerFlowAcceptanceOperations } from "./operations/flow-acceptance.js";
 import { registerFlowExportOperations } from "./operations/flow-export.js";
 import { registerFlowReconcileOperations } from "./operations/flow-reconcile.js";
+import { registerPerksExportOperations } from "./operations/perks-export.js";
 import { registerStatusOperations } from "./operations/status.js";
 import { DataSource, type DataSourceOptions } from "./data/source.js";
 import { FlowSource } from "./data/flow-source.js";
@@ -100,6 +101,9 @@ export function buildRouter(
   // overlay (loaded flows.json ⊕ accepted overlay). Read-only and available on every deployment;
   // without an overlay (a bare deployment) it exports just the loaded overlay.
   registerFlowExportOperations(router, flows, servingOverlay);
+  // Perks-export (#84 / #89) — the server as producer: emit a schema-valid, re-ingestible perks.json
+  // from the federated directory. Read-only, available on every deployment.
+  registerPerksExportOperations(router, data);
   // Flow-acceptance toolkit (#47 piece D) — the shared proposed-flow review queue + acceptance
   // dial; registered only where a shared FlowRegistry is wired (local + the stateful endpoint).
   if (options.flowRegistry) {
