@@ -41,8 +41,8 @@ operation" server. (The public endpoint is **read-only** — just the read verb;
 server exposes all five.)
 
 Beyond reading, the adapter is a **substrate for action and curation**: agents discover
-and propose application *flows*, an **operator** accepts them, the directory federates
-**many** opportunity feeds, and the server can **produce** feeds too — with safety checks
+and propose application *flows*, an **operator** accepts them, the directory **can federate
+many** opportunity feeds, and the server can **produce** feeds too — with safety checks
 throughout, and it only ever acts **with your permission, on your behalf**.
 
 ## System at a glance
