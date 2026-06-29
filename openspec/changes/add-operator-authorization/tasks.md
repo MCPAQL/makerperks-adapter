@@ -31,18 +31,19 @@
 
 ## 2. Gate the acceptance ops
 
-- [ ] 2.1 Thread `operator?: boolean` through `AppOptions` + `RouterStores` + `buildRouter` into
+- [x] 2.1 Thread `operator?: boolean` through `AppOptions` + `RouterStores` + `buildRouter` into
   `registerFlowAcceptanceOperations(router, data, flows, registry, proposer?, store?, operator?)`.
-- [ ] 2.2 In `accept_flow` and `set_acceptance_mode`, return `FORBIDDEN` when `operator` is not true;
+- [x] 2.2 In `accept_flow` and `set_acceptance_mode`, return `FORBIDDEN` when `operator` is not true;
   leave `propose_flow`, `list_proposed_flows`, `update_proposed_flow`, `reject_flow`, and all READ /
-  discovery ops open. Default `operator` to `false` on a hosted build (fail safe) and `true` for
-  local/stdio (implicit).
-- [ ] 2.3 `worker-stateful.ts`: resolve the operator boolean at the OAuth callback (reusing the
-  token already fetched for identity), carry `isOperator` in `UserProps`, and pass it into
-  `buildRouter` as `operator`. The local (`index.ts` / stdio) entry passes `operator: true`.
-- [ ] 2.4 Tests: a non-operator session is refused `accept_flow` + `set_acceptance_mode`
-  (`FORBIDDEN`) but can `propose_flow` and read; an operator session can accept; the read-only
-  worker (no acceptance ops) is unaffected.
+  discovery ops open. Default `operator` to `false` (fail safe); the dial stays the operator's
+  pre-authorization (a non-operator's proposal still auto-accepts under an operator-set mode).
+- [x] 2.3 `worker-stateful.ts`: resolve the operator boolean at the OAuth callback (reusing the
+  token already fetched for identity — `fetchGitHubIdentity` now returns the transient `accessToken`),
+  carry `isOperator` in `UserProps`, pass it into `buildRouter` as `operator`, and bump the authorize
+  scope only when option A is active. (Local/stdio wires no registry, so there is no op to gate.)
+- [x] 2.4 Tests: a non-operator session is refused `accept_flow` + `set_acceptance_mode`
+  (`FORBIDDEN`) but can `propose_flow` and read; an operator accepts a non-operator's proposal; the
+  operator-set dial auto-accepts a non-operator's proposal.
 
 ## 3. Validate + archive
 

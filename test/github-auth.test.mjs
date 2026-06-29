@@ -66,7 +66,12 @@ test("fetchGitHubIdentity returns the identity on a successful exchange", async 
     CONFIG,
     fakeFetch,
   );
-  assert.deepEqual(id, { userId: "4242", login: "octocat", name: "The Octocat" });
+  assert.deepEqual(id, {
+    userId: "4242",
+    login: "octocat",
+    name: "The Octocat",
+    accessToken: "gh-token",
+  });
 });
 
 test("fetchGitHubIdentity returns null when GitHub omits the access token", async () => {
@@ -92,5 +97,10 @@ test("fetchGitHubIdentity maps a missing GitHub name to null", async () => {
       ? okJson({ access_token: "t" })
       : okJson({ id: 1, login: "nameless" });
   const id = await fetchGitHubIdentity("c", "https://x/callback", CONFIG, fakeFetch);
-  assert.deepEqual(id, { userId: "1", login: "nameless", name: null });
+  assert.deepEqual(id, {
+    userId: "1",
+    login: "nameless",
+    name: null,
+    accessToken: "t",
+  });
 });

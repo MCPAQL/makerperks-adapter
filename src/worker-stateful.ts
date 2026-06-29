@@ -43,8 +43,15 @@ import {
   encodeAuthState,
   fetchGitHubIdentity,
   githubAuthorizeUrl,
+  SCOPE_IDENTITY,
+  SCOPE_OPERATOR_PUBLIC,
   type GitHubOAuthConfig,
 } from "./auth/github.js";
+import {
+  operatorPolicy,
+  policyNeedsRepoScope,
+  resolveOperator,
+} from "./session/operator.js";
 import type { Server } from "@modelcontextprotocol/sdk/server/index.js";
 
 // Cloudflare Workers Rate Limiting binding (per-IP backstop against abuse / runaway clients).
@@ -69,6 +76,12 @@ interface Env {
   // Base64 of 32 random bytes — the AES-256 key for the credential vault (#19). When absent,
   // the vault surface is simply not registered (the profile still works).
   VAULT_KEY?: string;
+  // Operator policy (#90). Set EITHER to enable operator-gated acceptance; both = OR'd. When
+  // neither is set on this hosted worker, acceptance fails SAFE (no operators). Non-secret —
+  // `OPERATOR_REPO` = "owner/repo" (admin on it = operator, via the user's own token), and/or
+  // `OPERATOR_LOGINS` = a comma/space-separated GitHub login allowlist.
+  OPERATOR_REPO?: string;
+  OPERATOR_LOGINS?: string;
 }
 
 // The OAuth-authenticated identity carried into the session DO as `this.props` (set by
@@ -77,6 +90,9 @@ interface UserProps extends Record<string, unknown> {
   userId: string;
   login: string;
   name?: string;
+  // Operator status (#90), resolved ONCE at the OAuth callback (the user's token in hand) and
+  // carried as a boolean only — no token is ever persisted. Gates accept_flow / set_acceptance_mode.
+  isOperator?: boolean;
 }
 
 function githubConfig(env: Env): GitHubOAuthConfig {
@@ -172,7 +188,7 @@ export class MakerPerksMcpAgent extends McpAgent<Env, SessionState, UserProps> {
 
     // The SHARED proposed-flow registry (#47 piece D) — one named DO for the whole deployment, so
     // the review queue + accepted overlay are operator-shared (not per-user). The serving ops then
-    // serve accepted flows live. (Operator-only gating of accept is a tracked follow-up.)
+    // serve accepted flows live. Acceptance is operator-gated (#90) via the resolved props flag.
     const regNs = this.env.REGISTRY_OBJECT;
     const reg = regNs.get(regNs.idFromName("flow-registry"));
     const flowRegistry: FlowRegistry = {
@@ -192,6 +208,7 @@ export class MakerPerksMcpAgent extends McpAgent<Env, SessionState, UserProps> {
         vaultCrypto: vault,
         flowRegistry,
         proposer: userId, // attribute proposals to the authenticated subject (#73)
+        operator: this.props?.isOperator ?? false, // operator-gated acceptance (#90); fail safe
       }),
     );
   }
@@ -212,11 +229,15 @@ const authHandler = {
       const config = githubConfig(env);
       const oauth = getOAuthApi(oauthOptions, env);
       const authReq = await oauth.parseAuthRequest(request);
+      // Request the broader GitHub scope only when operator option A (a governing repo) is active —
+      // it must read the user's repo permissions. Allowlist-only / no-operator stays minimal (#90).
+      const needsRepoScope = policyNeedsRepoScope(operatorPolicy(env));
       return Response.redirect(
         githubAuthorizeUrl({
           clientId: config.clientId,
           redirectUri: callbackUri,
           state: encodeAuthState(authReq),
+          scope: needsRepoScope ? SCOPE_OPERATOR_PUBLIC : SCOPE_IDENTITY,
         }),
         302,
       );
@@ -242,6 +263,14 @@ const authHandler = {
         return new Response("GitHub authentication failed", { status: 502 });
       }
 
+      // Resolve operator status ONCE, here, with the user's own token in hand (#90) — option A
+      // reads repo admin, option B matches the login, neither-configured fails safe. Only the
+      // resulting boolean is carried into the props; the access token is never persisted.
+      const isOperator = await resolveOperator(operatorPolicy(env), {
+        login: identity.login,
+        token: identity.accessToken,
+      });
+
       const oauth = getOAuthApi(oauthOptions, env);
       const { redirectTo } = await oauth.completeAuthorization({
         request: authReq,
@@ -252,6 +281,7 @@ const authHandler = {
           userId: identity.userId,
           login: identity.login,
           name: identity.name,
+          isOperator,
         },
       });
       return Response.redirect(redirectTo, 302);

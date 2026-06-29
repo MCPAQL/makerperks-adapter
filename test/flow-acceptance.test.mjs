@@ -6,8 +6,14 @@ import { inMemoryFlowRegistry } from "../dist/session/flow-registry.js";
 
 const FIXTURE = "test/fixtures/perks.sample.json";
 const SLUG = "neon/neon-free-tier"; // uncurated in the fixture → diff is all-added
+// Most acceptance-mechanics tests act AS an operator (#90) — accept_flow / set_acceptance_mode are
+// operator-gated. The dedicated gating block below builds non-operator routers explicitly.
 const withQueue = () =>
-  buildApp({ source: FIXTURE, flowRegistry: inMemoryFlowRegistry() });
+  buildApp({
+    source: FIXTURE,
+    flowRegistry: inMemoryFlowRegistry(),
+    operator: true,
+  });
 const d = (router, operation, params = {}) => router.dispatch({ operation, params });
 
 // A schema-valid, well-sourced candidate that clears the verify gate.
@@ -289,7 +295,12 @@ test("start_flow_discovery uses an accepted flow instead of re-discovering", asy
 // ── attribution: proposed_by (#73) ───────────────────────────────────────────
 
 const withQueueAs = (proposer) =>
-  buildApp({ source: FIXTURE, flowRegistry: inMemoryFlowRegistry(), proposer });
+  buildApp({
+    source: FIXTURE,
+    flowRegistry: inMemoryFlowRegistry(),
+    proposer,
+    operator: true,
+  });
 
 test("a proposal records the authenticated subject and lists it", async () => {
   const { router } = await withQueueAs("gh|1001");
@@ -323,4 +334,72 @@ test("proposed_by is server-set (no caller param) and absent when unattributed",
   await d(router, "propose_flow", { slug: SLUG, candidate: ready(0) });
   const list = await d(router, "list_proposed_flows", {});
   assert.equal(list.data.proposals[0].proposed_by, undefined);
+});
+
+// ── operator gating: zero-trust acceptance (#90) ─────────────────────────────
+
+// A non-operator session over a SHARED registry. `operator` defaults to false (fail safe).
+const reg = inMemoryFlowRegistry();
+const asNonOperator = () =>
+  buildApp({ source: FIXTURE, flowRegistry: reg, proposer: "gh|user" });
+
+test("a non-operator may propose and read but cannot accept or set the mode", async () => {
+  const { router } = await asNonOperator();
+  // propose + read stay open
+  const created = await d(router, "propose_flow", { slug: SLUG, candidate: ready(0) });
+  assert.equal(created.success, true);
+  assert.equal((await d(router, "list_proposed_flows", {})).success, true);
+
+  // accept_flow is FORBIDDEN and changes nothing
+  const acc = await d(router, "accept_flow", { id: created.data.id });
+  assert.equal(acc.success, false);
+  assert.equal(acc.error.code, "FORBIDDEN");
+  assert.equal(
+    (await d(router, "list_proposed_flows", { status: "pending" })).data.count,
+    1,
+    "the proposal is still pending — nothing was accepted",
+  );
+
+  // set_acceptance_mode is FORBIDDEN and the mode is unchanged
+  const mode = await d(router, "set_acceptance_mode", { mode: "full_auto" });
+  assert.equal(mode.error.code, "FORBIDDEN");
+  assert.equal((await d(router, "get_acceptance_mode")).data.mode, "review_each");
+});
+
+test("an operator can accept a proposal a non-operator made", async () => {
+  const fresh = inMemoryFlowRegistry();
+  const { router: user } = await buildApp({
+    source: FIXTURE,
+    flowRegistry: fresh,
+    proposer: "gh|user",
+  });
+  const { router: op } = await buildApp({
+    source: FIXTURE,
+    flowRegistry: fresh,
+    operator: true,
+  });
+  const created = await d(user, "propose_flow", { slug: SLUG, candidate: ready(0) });
+  const acc = await d(op, "accept_flow", { id: created.data.id });
+  assert.equal(acc.success, true);
+  assert.equal(acc.data.accepted, true);
+});
+
+test("the operator-set dial pre-authorizes auto-accept for a non-operator's proposal", async () => {
+  const shared = inMemoryFlowRegistry();
+  const { router: op } = await buildApp({
+    source: FIXTURE,
+    flowRegistry: shared,
+    operator: true,
+  });
+  const { router: user } = await buildApp({
+    source: FIXTURE,
+    flowRegistry: shared,
+    proposer: "gh|user",
+  });
+  // The operator enables auto-accept; a non-operator's ready, low-danger proposal then auto-accepts
+  // — the authority is the operator-set dial, not the proposer.
+  await d(op, "set_acceptance_mode", { mode: "full_auto" });
+  const res = await d(user, "propose_flow", { slug: SLUG, candidate: ready(0) });
+  assert.equal(res.data.status, "accepted");
+  assert.equal(res.data.auto_accepted, true);
 });

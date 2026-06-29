@@ -73,6 +73,11 @@ export function registerFlowAcceptanceOperations(
   // The per-user store, for the proposer's status policy (#36): block refuses a proposal, flag
   // surfaces a non-blocking finding. Undefined → the DEFAULT policy (flag non-Active, block none).
   store?: ProfileStore,
+  // Whether this session's principal is an operator (#90). Gates the two ops that mutate the served
+  // set — accept_flow + set_acceptance_mode — with FORBIDDEN; proposing + the queue stay open. The
+  // server resolves this from the operator policy; it is never a caller param. Defaults to false
+  // (fail safe), so a deployment that forgets to wire it cannot be accepted into.
+  operator = false,
 ): void {
   router.register({
     name: "propose_flow",
@@ -293,6 +298,12 @@ export function registerFlowAcceptanceOperations(
     returns:
       "An object with `id`, `accepted` (boolean), `status`, and — when not accepted — the `verdict`.",
     handler: async (params) => {
+      if (!operator) {
+        return err(
+          "FORBIDDEN",
+          "accepting a proposal requires operator authority — propose it instead; an operator accepts",
+        );
+      }
       const id = params.id as string;
       const existing = await registry.get(id);
       if (!existing) {
@@ -339,6 +350,12 @@ export function registerFlowAcceptanceOperations(
     },
     returns: "An object with the set `mode`.",
     handler: async (params) => {
+      if (!operator) {
+        return err(
+          "FORBIDDEN",
+          "setting the acceptance mode requires operator authority (it pre-authorizes auto-accept)",
+        );
+      }
       const mode = params.mode as AcceptanceMode;
       await registry.setMode(mode);
       return ok({ mode });

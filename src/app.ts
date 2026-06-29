@@ -35,6 +35,13 @@ export interface AppOptions extends DataSourceOptions {
   flowRegistry?: FlowRegistry;
   /** The authenticated subject, stamped onto proposals as `proposed_by` (#73 attribution). */
   proposer?: string;
+  /**
+   * Whether this session's principal is an operator (#90). Gates accept_flow / set_acceptance_mode.
+   * Local/stdio is implicitly an operator (true); a hosted session resolves it from the operator
+   * policy; the read-only worker never registers acceptance so it is moot there. Defaults to false
+   * (fail safe) when a registry is wired but no operator status was resolved.
+   */
+  operator?: boolean;
 }
 
 interface RouterStores {
@@ -43,6 +50,7 @@ interface RouterStores {
   vaultCrypto?: VaultCrypto;
   flowRegistry?: FlowRegistry;
   proposer?: string;
+  operator?: boolean;
 }
 
 /** Assemble a router over already-loaded data + flow overlay. EXECUTE/CRUDE ops need a store. */
@@ -89,6 +97,7 @@ export function buildRouter(
       options.flowRegistry,
       options.proposer,
       options.profileStore,
+      options.operator ?? false, // fail safe: no resolved operator status => not an operator
     );
   }
   if (options.sessionStore) {
@@ -127,6 +136,7 @@ export async function buildApp(
     vaultCrypto,
     flowRegistry,
     proposer,
+    operator,
     ...dataOptions
   } = options;
   const data = new DataSource(dataOptions);
@@ -138,6 +148,7 @@ export async function buildApp(
     vaultCrypto,
     flowRegistry,
     proposer,
+    operator,
   });
   return { router, data, flows };
 }

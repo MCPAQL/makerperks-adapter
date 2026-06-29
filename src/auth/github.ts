@@ -21,12 +21,18 @@ export interface GitHubOAuthConfig {
   clientSecret: string;
 }
 
-/** The authenticated identity we carry into the grant props (no secrets stored). */
+/**
+ * The result of the identity exchange. `userId` / `login` / `name` are carried into the grant props
+ * (no secrets stored). `accessToken` is the user's own OAuth token, returned for **transient** use
+ * in the callback (e.g. the operator permission read, #90) and **never** carried into the props.
+ */
 export interface GitHubIdentity {
   /** GitHub numeric id — stable across login renames; the per-user key. */
   userId: string;
   login: string;
   name: string | null;
+  /** The user's OAuth access token — transient (callback-only); never persisted. */
+  accessToken: string;
 }
 
 // --- base64url JSON codec: round-trips the full AuthRequest through GitHub's `state` ---
@@ -112,7 +118,12 @@ export async function fetchGitHubIdentity(
     login: string;
     name?: string | null;
   };
-  return { userId: String(user.id), login: user.login, name: user.name ?? null };
+  return {
+    userId: String(user.id),
+    login: user.login,
+    name: user.name ?? null,
+    accessToken,
+  };
 }
 
 /**
