@@ -5,15 +5,18 @@ A native [MCP-AQL](https://github.com/MCPAQL/spec) server over
 directory of builder perks (free credits, discounts, and programs for startups,
 students, OSS maintainers, indie devs, and non-profits).
 
-It exposes the **whole** directory to an AI agent through **one token-cheap semantic
-tool** per CRUDE verb (e.g. `mcp_aql_read`, **~120 tokens**) instead of a wall of
-discrete MCP tools — the operations are discovered at runtime via introspection. That's
-~95%+ fewer tool-registration tokens than a conventional "a tool per query" server.
+It speaks **MCP-AQL**: instead of registering a separate MCP tool for every query and
+action, the server exposes a small set of **semantic verbs** — *read · create · update ·
+delete · execute* (~120 tokens each) — and the agent discovers the operations behind them
+**at runtime** via introspection. So an agent's tool-registration cost stays nearly flat
+even as the number of operations grows past 30 — a fraction of a conventional "a tool per
+operation" server. (The public endpoint is **read-only** — just the read verb; the full
+server exposes all five.)
 
 Beyond reading, the adapter is a **substrate for action and curation**: agents discover
 and propose application *flows*, an **operator** accepts them, the directory federates
 **many** opportunity feeds, and the server can **produce** feeds too — all under a
-zero-trust trust model where the server never acts on anyone's behalf.
+zero-trust model where the server never acts on anyone's behalf.
 
 ## System at a glance
 
@@ -21,9 +24,9 @@ zero-trust trust model where the server never acts on anyone's behalf.
 flowchart TB
   agent["MCP agent<br/>(Claude Desktop / Code, Cursor, …)<br/>brings the model + web"]
 
-  subgraph core["Transport-agnostic core (buildRouter)"]
+  subgraph core["One shared core (same code everywhere)"]
     direction TB
-    ops["CRUDE ops · introspection<br/>READ · CREATE/UPDATE/DELETE · EXECUTE"]
+    ops["What an agent can do here:<br/>• browse + search the directory<br/>• discover + propose application flows<br/>• curate + publish them (operator)<br/>• drive signups, with consent"]
   end
 
   subgraph ro["Read-only endpoint — makerperks.mcpaql.com"]
@@ -49,8 +52,36 @@ flowchart TB
   kv --> ro
 ```
 
-The same core runs three ways: **local stdio** (a personal tool), the **read-only**
-public Worker, and the **stateful** Worker (real per-user OAuth, Durable Objects).
+**In the picture:**
+
+- **MCP agent** — your client (Claude Desktop / Code, Cursor, …). It brings the model and
+  any web access; the adapter brings the directory, the tools, and the guardrails.
+- **The core** — one request router. The *same* code runs three ways: local **stdio** (a
+  personal tool), the public **read-only** Worker, and the **stateful** Worker (per-user
+  GitHub login + Durable Objects).
+- **Read-only endpoint** (`makerperks.mcpaql.com`) — public, no login, stateless and
+  hardened. Serves the directory and any flows an operator has published.
+- **Stateful endpoint** (`makerperks-dev.mcpaql.com`) — per-user GitHub login, a per-user
+  profile + encrypted credential vault, the shared flow registry, and operator-gated
+  curation.
+- **Feeds → flows → KV mirror** — the data: one or many opportunity feeds federated into
+  the directory; a curated *flows* overlay (how to actually apply); and a shared mirror
+  that pushes operator-blessed flows to the public endpoint with no redeploy.
+
+**What makes it unique:**
+
+- **A near-flat tool cost** — a few semantic verbs + runtime discovery, so an agent's setup
+  cost barely grows as the operation count does.
+- **Model-agnostic flow discovery** — the server hands a connected agent a research
+  scaffold and the safety gates; the *agent* supplies the intelligence. No model or
+  provider SDK is baked in.
+- **Zero-trust curation** — anyone may propose, only an operator accepts and publishes, and
+  the server itself never writes anything outbound (no PRs, no stored write-credentials).
+- **A federating, producing substrate** — point it at many feeds (perks, grants, programs,
+  camping slots, …); it can also *generate* a feed of its own, which round-trips back in as
+  a source.
+- **One core, three deployments** — personal tool, public read-only, and full stateful,
+  from the same code.
 
 ## Connect
 
