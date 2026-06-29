@@ -21,6 +21,7 @@ export type ErrorCode =
   | "NOT_FOUND_RESOURCE"
   | "CONFLICT_EXISTS" // a CREATE for a resource that already exists (#34 CRUDE)
   | "CONFIRMATION_REJECTED" // a presented confirmation token was invalid/expired/used (#17)
+  | "FORBIDDEN" // an authenticated principal lacks authority for this operation (#90 operator gate)
   | "INTERNAL_ERROR";
 
 export interface AqlRequest {
