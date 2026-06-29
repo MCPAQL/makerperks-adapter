@@ -14,6 +14,7 @@ test("introspect lists the READ ops (incl. the flow + discovery ops)", async () 
   assert.equal(r.success, true);
   assert.deepEqual(r.data.operations.map((o) => o.name).sort(), [
     "diff_flow_proposal",
+    "export_flows",
     "get_application_flow",
     "get_discovery_brief",
     "get_program",

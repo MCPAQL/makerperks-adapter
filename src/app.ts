@@ -13,6 +13,7 @@ import { registerVaultOperations } from "./operations/vault.js";
 import { registerFlowHealthOperations } from "./operations/flow-health.js";
 import { registerFlowDiscoveryOperations } from "./operations/flow-discovery.js";
 import { registerFlowAcceptanceOperations } from "./operations/flow-acceptance.js";
+import { registerFlowExportOperations } from "./operations/flow-export.js";
 import { registerStatusOperations } from "./operations/status.js";
 import { DataSource, type DataSourceOptions } from "./data/source.js";
 import { FlowSource } from "./data/flow-source.js";
@@ -74,6 +75,10 @@ export function buildRouter(
     options.profileStore,
     options.flowRegistry,
   );
+  // Flow-export (#84 / #85) — the read-out half of the flows.json round-trip; emits the effective
+  // overlay (loaded flows.json ⊕ accepted overlay). Read-only and available on every deployment;
+  // without a registry (the read-only endpoint) it exports just the loaded overlay.
+  registerFlowExportOperations(router, flows, options.flowRegistry);
   // Flow-acceptance toolkit (#47 piece D) — the shared proposed-flow review queue + acceptance
   // dial; registered only where a shared FlowRegistry is wired (local + the stateful endpoint).
   if (options.flowRegistry) {
