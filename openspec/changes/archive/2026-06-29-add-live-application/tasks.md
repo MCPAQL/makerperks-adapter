@@ -40,6 +40,6 @@
 
 ## 3. Validate + archive
 
-- [ ] 3.1 `openspec validate add-live-application --strict`; typecheck/lint/both test layers green;
+- [x] 3.1 `openspec validate add-live-application --strict`; typecheck/lint/both test layers green;
   update any op-count/parity assertions if touched.
-- [ ] 3.2 Archive into `openspec/specs/` (`live-application` created); fill the spec `Purpose`.
+- [x] 3.2 Archive into `openspec/specs/` (`live-application` created); fill the spec `Purpose`.
