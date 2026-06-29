@@ -31,6 +31,15 @@
     { "tag": "v2", "new_sqlite_classes": ["MakerProfileDO"] },
     { "tag": "v3", "new_sqlite_classes": ["FlowRegistryDO"] },
   ],
+  // Operator policy (#90) — who may ACCEPT proposals into the served set (users only propose).
+  // Non-secret + configurable. Both are set here (OR'd): operator = admin on OPERATOR_REPO (read
+  // with the user's own token) OR login in OPERATOR_LOGINS. Edit/remove either to retune; setting
+  // neither would fail safe (no operators). OPERATOR_REPO active also bumps the OAuth scope to
+  // public_repo for every user (it must read repo permissions).
+  "vars": {
+    "OPERATOR_REPO": "MCPAQL/makerperks-adapter",
+    "OPERATOR_LOGINS": "mickdarling",
+  },
   // Per-IP rate-limit backstop (mirrors the live worker). 100 requests / 10s per IP.
   "ratelimits": [
     {
