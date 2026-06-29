@@ -61,7 +61,7 @@ Each stage is one or more OpenSpec changes. A stage is "done" when its changes a
 implemented, `openspec validate --strict` passes, build/typecheck/lint are green, and
 the change is archived into `openspec/specs/`.
 
-### Stage 0 — Read adapter + dual-transport foundation  *(ACTIVE)*
+### Stage 0 — Read adapter + dual-transport foundation  *(DONE)*
 
 **Goal:** a native MCP-AQL **READ** surface over the directory, with **both**
 transports working over one transport-agnostic core from the first release.
@@ -83,7 +83,7 @@ transports working over one transport-agnostic core from the first release.
 automatability tagging, the public hosted endpoint. Stage 0 makes the server *capable*
 of Streamable HTTP; standing up the hosted endpoint is Stage 2.
 
-### Stage 1 — Application pipeline + autonomy switch (API-based providers)
+### Stage 1 — Application pipeline + autonomy switch (API-based providers)  *(DONE)*
 
 **Goal:** an agent drives real perk applications for a handful of **API-based**
 providers, with the human in the loop exactly as much as they choose.
@@ -110,9 +110,10 @@ providers, with the human in the loop exactly as much as they choose.
 **OpenSpec change(s):** e.g. `add-application-pipeline`, `add-autonomy-switch`
 (to be proposed when Stage 1 starts).
 
-### Stage 2 — Coverage, web-only handoff, and hosting
+### Stage 2 — Hosting, the flow arc, and portable directory data  *(LARGELY DONE)*
 
-**Goal:** broaden coverage and remove the last frictions.
+**Goal:** broaden coverage, remove the last frictions, and turn the directory into a
+multi-publisher, round-trippable substrate.
 
 **Scope / deliverables:**
 - **Web-only handoff.** For providers with no API, the pipeline pre-assembles
@@ -123,11 +124,24 @@ providers, with the human in the loop exactly as much as they choose.
   bespoke; the MCP-AQL adapter-generator helps only for providers that already expose
   an MCP/API server).
 - **Hosted Streamable HTTP endpoint — DONE (2026-06-26).** Live at
-  `https://makerperks.mcpaql.com` via a Cloudflare Worker (OpenSpec change
-  `add-cloudflare-worker`, archived). Public read-only; endpoint auth arrives with the
-  Stage 1 pipeline.
-- Optional: list the adapter / MCP-AQL in MakerPerks' agent section (an MIT-safe data
-  PR to Nate) to close the traffic loop.
+  `https://makerperks.mcpaql.com` via a Cloudflare Worker (`add-cloudflare-worker`).
+- **Stateful endpoint + real per-user OAuth — DONE.** `https://makerperks-dev.mcpaql.com`
+  (`add-stateful-hosting`, `add-endpoint-oauth`): `McpAgent` per session, `MakerProfileDO`
+  per user, the shared `FlowRegistryDO`.
+- **The flow arc — DONE.** Flow Documents + `flows.json` (`add-flow-documents`), freshness
+  + per-user health (`add-flow-health`), the model-agnostic discovery toolkit
+  (`add-flow-discovery`), the acceptance queue + dial (`add-flow-acceptance`), and
+  directory-status knobs (`add-directory-status`).
+- **Portable directory data (epic #84) — DONE.** Multi-source federation
+  (`add-directory-federation`), the operator / zero-trust model (`add-operator-authorization`),
+  flow + perks export (`add-flow-export`, `add-perks-export`), and reconcile-to-public
+  (`add-flow-reconcile`). See [`flows-roundtrip.md`](flows-roundtrip.md).
+- **Web-only handoff — DONE** (`add-web-handoff`): pre-assemble + hand off to an external
+  browser-automation agent (the adapter never drives a headless browser).
+- **Remaining:** expand provider-flow coverage (the long tail, #48); the contribution-
+  mediator epic (#80 — perk-record queue #81, Nate ingest/PR #82, drift→retire #83);
+  anti-griefing (#73); optionally list the adapter in MakerPerks' agent section (MIT-safe
+  data PR) to close the traffic loop.
 
 ## 5. Cross-cutting decisions (apply across stages)
 
@@ -151,17 +165,27 @@ providers, with the human in the loop exactly as much as they choose.
 - Published npm scope/name for the stdio distribution (`@mcpaql/makerperks-adapter`?).
 - Where the Stage-1 provider-flow dataset lives and its schema.
 
-## 7. Status
+## 7. Status (2026-06-29)
 
-- **Stage 0 — DONE** (2026-06-26): `add-makerperks-adapter` implemented — all 22 tasks
-  complete, `--strict`-validated, and **archived into `openspec/specs/`** (baseline:
-  `server-transport`, `directory-query`, `data-source`). The adapter is a working MCP
-  server over **stdio and Streamable HTTP** exposing a single `mcp_aql_read` tool (READ
-  ops + mandatory introspection) over the live `perks.json`. 17 `node:test` tests green;
-  typecheck/lint/build clean. Repo: github.com/MCPAQL/makerperks-adapter (issues #1–#5
-  closed).
-- **Next:** Stage 1 (application pipeline + the autonomy switch) — to be proposed as new
-  OpenSpec change(s) when it begins.
-- **Hosted HTTPS endpoint — DONE** (2026-06-26): `https://makerperks.mcpaql.com` via a
-  Cloudflare Worker (`add-cloudflare-worker`, archived; issues #6–#10 closed).
-- **Not started:** Stage 1; the rest of Stage 2 (web-only handoff, coverage).
+**Stages 0, 1, and the bulk of Stage 2 are DONE, archived, and deployed.** 22 capabilities
+live under `openspec/specs/`; 224 `node:test` + 10 `vitest-pool-workers` tests green;
+typecheck/lint/build clean.
+
+- **Stage 0 — DONE:** the READ adapter over stdio + Streamable HTTP (`server-transport`,
+  `directory-query`, `data-source`).
+- **Stage 1 — DONE:** the EXECUTE application pipeline + autonomy switch + per-user profile
+  + encrypted credential vault (`application-pipeline`, `autonomy-switch`, `maker-profile`,
+  `credential-vault`).
+- **Stage 2 — LARGELY DONE:** hosting (read-only + stateful Workers), real per-user OAuth,
+  the full flow arc, directory-status, web-only handoff, and the **portable-data epic #84**
+  (multi-source federation, the operator/zero-trust model, flow + perks export,
+  reconcile-to-public). See the Stage 2 deliverables above for the capability mapping.
+
+**Live deployments:**
+- Read-only: `https://makerperks.mcpaql.com` (stateless, hardened, public).
+- Stateful: `https://makerperks-dev.mcpaql.com` (GitHub OAuth, Durable Objects, operator
+  policy + KV mirror).
+
+**Remaining (tracked as GitHub issues, not blocking):** expand provider-flow coverage
+(#48); the contribution-mediator epic #80 (#81/#82/#83); anti-griefing #73; and any
+production-hardening before promoting the stateful endpoint to the primary domain.
