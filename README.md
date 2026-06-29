@@ -111,4 +111,6 @@ See [`docs/ROADMAP.md`](docs/ROADMAP.md) for the staged plan and current status.
 
 Code & schemas: AGPL-3.0 (commercial tiers available, like the rest of the MCP-AQL
 org). Docs: CC BY 4.0. The directory **data** is MIT (MakerPerks); only MIT-safe data
-crosses back to the upstream directory — no AGPL code does.
+crosses back to the upstream directory — no AGPL code does. The AGPL covers the engine,
+not the feeds it reads or emits — see [`LICENSING.md`](LICENSING.md) for the full data
+boundary.
