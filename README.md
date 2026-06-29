@@ -1,5 +1,32 @@
 # MakerPerks MCP-AQL Adapter
 
+**Find and claim the free credits, discounts, and startup programs you qualify for — and
+let your AI assistant do the hunting and the paperwork.**
+
+There are hundreds of thousands of dollars in perks for builders — cloud and AI credits,
+discounts, startup and student programs — scattered across the web, and most people never
+claim them. This connects that directory to your AI assistant so it can find what fits you
+and even apply for you.
+
+**What you can do with it:**
+
+1. **Connect it to your AI assistant** — Claude, Cursor, and other AI tools. (For the hosted
+   version, there's nothing to install.)
+2. **Ask what you can get.** Tell it about yourself — _"I'm a bootstrapped two-person startup
+   building with AI"_ — and it searches the whole directory and shows you the perks that fit,
+   and how much each is worth.
+3. **Let it work out how to apply.** For any program, it figures out the exact steps to sign
+   up.
+4. **Have it apply for you — with your approval.** It fills in the application from details
+   you've saved and submits it, pausing to check with you before anything sensitive. Whether
+   a program signs you up through a direct connection or a normal web form, your assistant can
+   handle it — or hand you a ready-to-submit form to finish yourself.
+
+You stay in control the whole way: you choose how much it does on its own, and it never
+claims something you don't qualify for.
+
+---
+
 A native [MCP-AQL](https://github.com/MCPAQL/spec) server over
 [MakerPerks](https://github.com/natea/makerperks) — the browseable, agent-friendly
 directory of builder perks (free credits, discounts, and programs for startups,
