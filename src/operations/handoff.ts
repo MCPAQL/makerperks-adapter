@@ -13,7 +13,8 @@ import type {
   SubmissionMethod,
 } from "../data/flows.js";
 import type { Execution } from "../session/state.js";
-import type { MakerProfile } from "../session/profile.js";
+import type { MakerProfile, VaultEntry } from "../session/profile.js";
+import type { VaultCrypto } from "./../session/vault.js";
 
 /**
  * Project the maker profile into candidate application inputs. Only fields the profile actually
@@ -136,4 +137,36 @@ export function buildHandoff(
     gaps: flow.gaps,
     eligibility_notice: eligibilityNotice(flow),
   };
+}
+
+/**
+ * The live application package the agent actually applies with (#91). It is `buildHandoff` plus
+ * DANGER-TIERED credential delivery: for a flow at **danger ≤ 2**, a supplied vault credential is
+ * decrypted and moved from `pending_inputs` into `assembled_inputs` so the agent can authenticate;
+ * for **danger ≥ 3** (payment / real identity) the secret is NEVER exposed — it stays pending for
+ * out-of-band supply. With no vault key (or no credential), it stays pending — fail safe. This is
+ * the one place a credential plaintext may reach the agent, and only under the low-danger tier; the
+ * preview path (`get_handoff` / `buildHandoff`) remains entirely secret-free.
+ */
+export async function buildApplicationPackage(
+  flow: ApplicationFlow,
+  execution: Execution,
+  profile?: MakerProfile,
+  opts?: { vault?: VaultCrypto; credential?: VaultEntry },
+): Promise<HandoffPackage> {
+  const pkg = buildHandoff(flow, execution, profile);
+  const { vault, credential } = opts ?? {};
+  if (vault && credential && flow.danger_level <= 2) {
+    const idx = pkg.pending_inputs.findIndex((p) => p.reason === "credential");
+    if (idx >= 0) {
+      const target = pkg.pending_inputs[idx];
+      const value = await vault.open({
+        ciphertext: credential.ciphertext,
+        iv: credential.iv,
+      });
+      pkg.assembled_inputs.push({ key: target.key, value, source: "credential" });
+      pkg.pending_inputs.splice(idx, 1);
+    }
+  }
+  return pkg;
 }

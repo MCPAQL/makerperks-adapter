@@ -168,3 +168,66 @@ test("submit_step on an api flow still returns a simulated submission (no handof
   assert.equal("handoff_available" in res.data, false);
   assert.match(res.data.did, /SIMULATED submission/);
 });
+
+// ── danger-tiered credential delivery in the application package (#91) ────────
+import { buildApplicationPackage } from "../dist/operations/handoff.js";
+import {
+  vaultCrypto,
+  generateVaultKeyBytes,
+  importVaultKey,
+} from "../dist/session/vault.js";
+
+const makeVaultAndEntry = async (plaintext) => {
+  const vault = vaultCrypto(await importVaultKey(generateVaultKeyBytes()));
+  const sealed = await vault.seal(plaintext);
+  const credential = {
+    id: "c1",
+    kind: "scoped_token",
+    label: "GCP billing",
+    ciphertext: sealed.ciphertext,
+    iv: sealed.iv,
+    createdAt: 0,
+  };
+  return { vault, credential };
+};
+
+test("buildApplicationPackage: danger <=2 includes the decrypted credential for the agent", async () => {
+  const { vault, credential } = await makeVaultAndEntry("secret-billing-123");
+  const pkg = await buildApplicationPackage(webFlow, execution(), profile({}), {
+    vault,
+    credential,
+  });
+  const cred = pkg.assembled_inputs.find((i) => i.key === "billing_account_id");
+  assert.ok(cred, "credential moved to assembled");
+  assert.equal(cred.value, "secret-billing-123"); // decrypted for the agent
+  assert.equal(cred.source, "credential");
+  assert.equal(
+    pkg.pending_inputs.some((i) => i.key === "billing_account_id"),
+    false,
+    "no longer pending",
+  );
+});
+
+test("buildApplicationPackage: danger >=3 never exposes the credential", async () => {
+  const { vault, credential } = await makeVaultAndEntry("secret-billing-123");
+  const dangerFlow = { ...webFlow, danger_level: 3 };
+  const pkg = await buildApplicationPackage(dangerFlow, execution(), profile({}), {
+    vault,
+    credential,
+  });
+  const cred = pkg.pending_inputs.find((i) => i.key === "billing_account_id");
+  assert.equal(cred.reason, "credential"); // still pending / out-of-band
+  assert.equal(
+    pkg.assembled_inputs.some((i) => i.key === "billing_account_id"),
+    false,
+    "never assembled",
+  );
+});
+
+test("buildApplicationPackage: no vault key keeps the credential pending (fail safe)", async () => {
+  const pkg = await buildApplicationPackage(webFlow, execution(), profile({}));
+  assert.equal(
+    pkg.pending_inputs.find((i) => i.key === "billing_account_id").reason,
+    "credential",
+  );
+});

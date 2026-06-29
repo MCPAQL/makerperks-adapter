@@ -2,8 +2,9 @@
 // identically on Node 20 and on Cloudflare Workers — NO node:fs / node imports here. The key
 // is provided by the caller: a keyfile under ~/.makerperks/ in local mode (src/local/
 // vault-key.ts), the `VAULT_KEY` worker secret hosted (#51). The plaintext is sealed here and
-// only ever opened server-side; it is never returned to the agent.
-// See openspec/changes/add-profile-vault (capability `credential-vault`, #19).
+// opened only server-side. It reaches the agent only DANGER-TIERED (#91): a danger ≤ 2 flow's
+// credential is opened into the application package so the agent can authenticate; danger ≥ 3
+// (payment / real identity) is never exposed. See openspec/changes/add-profile-vault + add-live-application.
 
 /** A sealed secret: base64 AES-GCM ciphertext + the per-entry random IV it was sealed with. */
 export interface SealedSecret {

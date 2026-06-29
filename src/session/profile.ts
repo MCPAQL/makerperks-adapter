@@ -51,9 +51,11 @@ export const SECRET_KINDS = ["scoped_token", "password", "identity_document"] as
 export type SecretKind = (typeof SECRET_KINDS)[number];
 
 /**
- * A stored secret. The plaintext is encrypted at rest (AES-GCM) and is NEVER returned to the
- * agent — only the metadata fields (id, kind, label, provider, createdAt) are surfaced. The
- * plaintext is decrypted only server-side at the point of (simulated) use. See session/vault.ts.
+ * A stored secret, encrypted at rest (AES-GCM). Listings surface only the metadata (id, kind,
+ * label, provider, createdAt) — never the secret value. The plaintext is decrypted server-side and
+ * reaches the agent only DANGER-TIERED at the point of use (#91): included in the application
+ * package for a danger ≤ 2 flow so the agent can authenticate; danger ≥ 3 is never exposed (it stays
+ * out-of-band). See session/vault.ts.
  */
 export interface VaultEntry {
   id: string;
