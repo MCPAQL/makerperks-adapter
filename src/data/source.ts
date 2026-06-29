@@ -23,6 +23,8 @@ export interface PerkProgram {
   status?: "Active" | "Discontinued" | "Beta" | "Upcoming";
   aggregator?: boolean;
   unlocks?: string[];
+  /** Server-set provenance (#88): the id of the feed this program was ingested from. */
+  feed?: string;
 }
 
 export interface PerksPayload {
@@ -34,9 +36,32 @@ export interface PerksPayload {
   count?: number;
 }
 
+/** One federated feed (#88): a URL/path, with an optional id and an optional slug prefix. */
+export interface FeedConfig {
+  /** A stable feed id (provenance tag). Derived from the URL host / filename stem when omitted. */
+  id?: string;
+  /** A live published URL or a local file path. */
+  source: string;
+  /** When set, this feed's slugs become `prefix:slug` (isolated — cannot collide with other feeds). */
+  prefix?: string;
+}
+
+/** Per-feed load + federation health, surfaced via `list_sources` (#88). */
+export interface FeedStatus {
+  id: string;
+  source: string;
+  prefix?: string;
+  status: "ok" | "failed";
+  count: number;
+  error?: string;
+  collisions_dropped: number;
+}
+
 export interface DataSourceOptions {
   /** A live published URL or a local file path. Defaults to the live MakerPerks endpoint. */
   source?: string;
+  /** One or many feeds to federate (#88), in priority order. Takes precedence over `source`. */
+  sources?: (string | FeedConfig)[];
   /** Auto-reload if cached data is older than this (ms). 0 = never auto-reload. */
   ttlMs?: number;
   /** Override fetch (for tests). */
@@ -44,6 +69,29 @@ export interface DataSourceOptions {
 }
 
 const DEFAULT_SOURCE = "https://www.makerperks.com/perks.json";
+
+/** Derive a feed id from a URL host or a file's stem, when no explicit id is configured. */
+function deriveFeedId(source: string): string {
+  try {
+    return new URL(source).host;
+  } catch {
+    const stem = source.split(/[/\\]/).pop() ?? source;
+    return stem.replace(/\.json$/i, "") || source;
+  }
+}
+
+/** Normalize the configured feeds (sources, else single `source`, else the default) to FeedConfig[]. */
+function normalizeFeeds(opts: DataSourceOptions): Required<FeedConfig>[] {
+  const raw = opts.sources?.length ? opts.sources : [opts.source ?? DEFAULT_SOURCE];
+  return raw.map((f) => {
+    const cfg: FeedConfig = typeof f === "string" ? { source: f } : f;
+    return {
+      source: cfg.source,
+      id: cfg.id ?? deriveFeedId(cfg.source),
+      prefix: cfg.prefix ?? "",
+    };
+  });
+}
 
 const STATUSES = ["Active", "Discontinued", "Beta", "Upcoming"];
 const VALUE_TYPES = ["credits", "discount", "free_tier"];
@@ -122,41 +170,72 @@ function collectPayloadErrors(data: unknown): string[] {
 }
 
 export class DataSource {
-  private readonly source: string;
+  private readonly feeds: Required<FeedConfig>[];
   private readonly ttlMs: number;
   private readonly fetchImpl: typeof fetch;
-  private payload: PerksPayload | null = null;
+  // Federated, deduped programs + per-feed health + the primary feed's meta. Null until loaded.
+  private federated: PerkProgram[] | null = null;
+  private feedStatuses: FeedStatus[] = [];
+  private primaryMeta: Omit<PerksPayload, "programs"> | null = null;
   private loadedAt = 0;
 
   constructor(opts: DataSourceOptions = {}) {
-    this.source = opts.source ?? DEFAULT_SOURCE;
+    this.feeds = normalizeFeeds(opts);
     this.ttlMs = opts.ttlMs ?? 0;
     // Wrap (don't store a bare `fetch` reference) — on Workers a detached global
     // fetch throws "Illegal invocation" when called with the wrong `this`.
     this.fetchImpl = opts.fetchImpl ?? ((input, init) => fetch(input, init));
   }
 
-  /** Force a load from the source, validating the published payload. */
+  /**
+   * Load + federate all feeds. Each feed loads independently and FAIL-SOFT: a failing feed is
+   * recorded (`status: "failed"`) and contributes nothing, the rest serve — UNLESS exactly one feed
+   * is configured, in which case a failure throws (never silently serve an empty directory). On
+   * success, each program is tagged with its feed id (provenance) and, if the feed has a prefix, its
+   * slug is rewritten `prefix:slug`. Programs federate in priority order with first-wins dedupe.
+   */
   async load(): Promise<void> {
-    const raw = await this.read();
-    let data: unknown;
-    try {
-      data = JSON.parse(raw);
-    } catch (error) {
-      throw new Error(
-        `perks.json is not valid JSON (source: ${this.source}): ${(error as Error).message}`,
-        { cause: error },
-      );
+    const lone = this.feeds.length === 1;
+    const statuses: FeedStatus[] = [];
+    const bySlug = new Map<string, PerkProgram>();
+    let primaryMeta: Omit<PerksPayload, "programs"> | null = null;
+
+    for (const feed of this.feeds) {
+      const status: FeedStatus = {
+        id: feed.id,
+        source: feed.source,
+        ...(feed.prefix ? { prefix: feed.prefix } : {}),
+        status: "ok",
+        count: 0,
+        collisions_dropped: 0,
+      };
+      let payload: PerksPayload;
+      try {
+        payload = await this.loadFeed(feed.source);
+      } catch (error) {
+        if (lone) throw error; // single-source default stays loud
+        status.status = "failed";
+        status.error = (error as Error).message;
+        statuses.push(status);
+        continue;
+      }
+      const { programs: _p, ...meta } = payload;
+      if (!primaryMeta) primaryMeta = meta; // the highest-priority OK feed's meta
+      for (const program of payload.programs) {
+        const slug = feed.prefix ? `${feed.prefix}:${program.slug}` : program.slug;
+        if (bySlug.has(slug)) {
+          status.collisions_dropped += 1; // a higher-priority feed already owns this slug
+          continue;
+        }
+        bySlug.set(slug, { ...program, slug, feed: feed.id }); // server-set provenance + prefix
+        status.count += 1;
+      }
+      statuses.push(status);
     }
-    const errors = collectPayloadErrors(data);
-    if (errors.length > 0) {
-      throw new Error(
-        `perks.json failed schema validation (source: ${this.source}): ${errors
-          .slice(0, 5)
-          .join("; ")}`,
-      );
-    }
-    this.payload = data as PerksPayload;
+
+    this.federated = [...bySlug.values()];
+    this.feedStatuses = statuses;
+    this.primaryMeta = primaryMeta ?? { name: "directory" };
     this.loadedAt = Date.now();
   }
 
@@ -167,7 +246,7 @@ export class DataSource {
 
   /** Load if never loaded, or reload if the TTL has elapsed. */
   async ensureLoaded(): Promise<void> {
-    if (!this.payload) {
+    if (!this.federated) {
       await this.load();
       return;
     }
@@ -176,35 +255,66 @@ export class DataSource {
     }
   }
 
-  /** The loaded programs. Throws if not loaded. */
+  /** The federated, deduped programs. Throws if not loaded. */
   programs(): PerkProgram[] {
-    if (!this.payload) {
+    if (!this.federated) {
       throw new Error("DataSource not loaded — call load() (or ensureLoaded()) first");
     }
-    return this.payload.programs;
+    return this.federated;
   }
 
-  /** Payload metadata (everything except the programs array). Throws if not loaded. */
+  /** Per-feed load + federation health (#88). Throws if not loaded. */
+  sources(): FeedStatus[] {
+    if (!this.federated) {
+      throw new Error("DataSource not loaded — call load() (or ensureLoaded()) first");
+    }
+    return this.feedStatuses;
+  }
+
+  /** Federated directory metadata (the primary feed's meta + the federated count). Feed ids are in
+   * `sources()`. Throws if not loaded. */
   meta(): Omit<PerksPayload, "programs"> {
-    if (!this.payload) {
+    if (!this.federated || !this.primaryMeta) {
       throw new Error("DataSource not loaded — call load() (or ensureLoaded()) first");
     }
-    const { programs: _programs, ...meta } = this.payload;
-    return meta;
+    return { ...this.primaryMeta, count: this.federated.length };
   }
 
-  private async read(): Promise<string> {
-    if (/^https?:\/\//i.test(this.source)) {
-      const res = await this.fetchImpl(this.source);
+  /** Load + validate a single feed's payload (the per-feed unit of the fail-soft loop). */
+  private async loadFeed(source: string): Promise<PerksPayload> {
+    const raw = await this.read(source);
+    let data: unknown;
+    try {
+      data = JSON.parse(raw);
+    } catch (error) {
+      throw new Error(
+        `perks.json is not valid JSON (source: ${source}): ${(error as Error).message}`,
+        { cause: error },
+      );
+    }
+    const errors = collectPayloadErrors(data);
+    if (errors.length > 0) {
+      throw new Error(
+        `perks.json failed schema validation (source: ${source}): ${errors
+          .slice(0, 5)
+          .join("; ")}`,
+      );
+    }
+    return data as PerksPayload;
+  }
+
+  private async read(source: string): Promise<string> {
+    if (/^https?:\/\//i.test(source)) {
+      const res = await this.fetchImpl(source);
       if (!res.ok) {
         throw new Error(
-          `failed to fetch perks.json (${res.status} ${res.statusText}) from ${this.source}`,
+          `failed to fetch perks.json (${res.status} ${res.statusText}) from ${source}`,
         );
       }
       return res.text();
     }
     // Lazy so URL sources (e.g. on Cloudflare Workers) never bundle node:fs.
     const { readFile } = await import("node:fs/promises");
-    return readFile(this.source, "utf8");
+    return readFile(source, "utf8");
   }
 }
