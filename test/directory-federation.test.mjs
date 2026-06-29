@@ -126,3 +126,58 @@ test("derived feed id + federated meta count", async () => {
   assert.equal(ds.meta().count, 2);
   assert.equal(ds.meta().name, "Alpha");
 });
+
+// ── §2: the read surface over a federated directory ──────────────────────────
+import { buildApp } from "../dist/app.js";
+
+const twoFeedApp = (fetchImpl) =>
+  buildApp({
+    sources: [
+      { id: "alpha", source: A },
+      { id: "beta", source: B },
+    ],
+    fetchImpl,
+  });
+const call = (router, operation, params = {}) => router.dispatch({ operation, params });
+
+test("list_programs feed filter narrows to one feed; list_sources reports health", async () => {
+  const { router } = await twoFeedApp(
+    fetchFrom({
+      [A]: feed("Alpha", [prog("anthropic/x"), prog("neon/y")]),
+      [B]: feed("Beta", [prog("grant/z")]),
+    }),
+  );
+  const all = await call(router, "list_programs");
+  assert.equal(all.data.count, 3);
+
+  const beta = await call(router, "list_programs", { feed: "beta" });
+  assert.equal(beta.data.count, 1);
+  assert.equal(beta.data.programs[0].slug, "grant/z");
+
+  const sources = await call(router, "list_sources");
+  assert.equal(sources.data.count, 2);
+  assert.equal(sources.data.sources.find((s) => s.id === "alpha").count, 2);
+});
+
+test("list_sources surfaces a failed feed while the directory still serves", async () => {
+  const { router } = await twoFeedApp(
+    fetchFrom({ [A]: feed("Alpha", [prog("anthropic/x")]), [B]: 500 }),
+  );
+  assert.equal((await call(router, "list_programs")).data.count, 1);
+  const beta = (await call(router, "list_sources")).data.sources.find(
+    (s) => s.id === "beta",
+  );
+  assert.equal(beta.status, "failed");
+  assert.match(beta.error, /500/);
+});
+
+test("list_sources is introspectable as a READ op", async () => {
+  const { router } = await twoFeedApp(
+    fetchFrom({ [A]: feed("Alpha", [prog("anthropic/x")]), [B]: feed("Beta", []) }),
+  );
+  const op = (await call(router, "introspect")).data.operations.find(
+    (o) => o.name === "list_sources",
+  );
+  assert.ok(op);
+  assert.equal(op.semantic_category, "READ");
+});

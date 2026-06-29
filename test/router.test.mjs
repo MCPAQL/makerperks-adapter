@@ -21,6 +21,7 @@ test("introspect lists the READ ops (incl. the flow + discovery ops)", async () 
     "introspect",
     "list_application_flows",
     "list_programs",
+    "list_sources",
     "search_programs",
     "start_flow_discovery",
     "verify_flow_proposal",

@@ -47,6 +47,12 @@ export function registerReadOperations(
         required: false,
         description: "Filter by provider slug.",
       },
+      feed: {
+        type: "string",
+        required: false,
+        description:
+          "Filter by source feed id (#88 federation; see list_sources for the ids).",
+      },
       region: {
         type: "string",
         required: false,
@@ -83,6 +89,7 @@ export function registerReadOperations(
       const audience = params.audience as string | undefined;
       const tag = params.tag as string | undefined;
       const provider = params.provider as string | undefined;
+      const feed = params.feed as string | undefined;
       const region = params.region as string | undefined;
       const status = params.status as string | undefined;
       const minValue = params.min_value as number | undefined;
@@ -91,6 +98,7 @@ export function registerReadOperations(
       if (audience) results = results.filter((p) => p.audience.includes(audience));
       if (tag) results = results.filter((p) => (p.tags ?? []).includes(tag));
       if (provider) results = results.filter((p) => p.provider === provider);
+      if (feed) results = results.filter((p) => p.feed === feed);
       if (region) results = results.filter((p) => p.region === region);
       if (status) results = results.filter((p) => p.status === status);
       if (minValue !== undefined)
@@ -132,6 +140,11 @@ export function registerReadOperations(
       "Fuzzy full-text search across programs (title, provider, tags, slug).",
     params: {
       query: { type: "string", required: true, description: "Free-text query." },
+      feed: {
+        type: "string",
+        required: false,
+        description: "Restrict the search to one source feed id (#88 federation).",
+      },
       include_inactive: {
         type: "boolean",
         required: false,
@@ -148,11 +161,13 @@ export function registerReadOperations(
     handler: async (params) => {
       await data.ensureLoaded();
       const query = params.query as string;
+      const feed = params.feed as string | undefined;
       const limit = (params.limit as number | undefined) ?? 20;
-      const pool = await applyStatusExclusion(
+      let pool = await applyStatusExclusion(
         data.programs(),
         params.include_inactive === true,
       );
+      if (feed) pool = pool.filter((p) => p.feed === feed);
       const fuse = new Fuse(pool, {
         threshold: 0.4,
         ignoreLocation: true,
@@ -165,6 +180,23 @@ export function registerReadOperations(
       });
       const results = fuse.search(query, { limit }).map((r) => r.item);
       return ok({ count: results.length, programs: results });
+    },
+  });
+
+  router.register({
+    name: "list_sources",
+    semanticCategory: "READ",
+    description:
+      "List the federated directory's source feeds (#88) with per-feed health: id, source, " +
+      "optional slug prefix, status (ok/failed), program count, any load error, and how many " +
+      "colliding slugs were dropped. How a skipped (failed) feed or a slug collision becomes visible.",
+    params: {},
+    returns:
+      "An object with `count` and `sources` (one health entry per configured feed).",
+    handler: async () => {
+      await data.ensureLoaded();
+      const sources = data.sources();
+      return ok({ count: sources.length, sources });
     },
   });
 }

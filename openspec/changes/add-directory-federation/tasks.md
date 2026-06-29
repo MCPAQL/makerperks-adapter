@@ -30,15 +30,15 @@
 
 ## 2. Read surface: feed filter + list_sources + fail-soft visibility
 
-- [ ] 2.1 `operations/read.ts`: `list_programs` / `search_programs` gain an optional `feed` filter
+- [x] 2.1 `operations/read.ts`: `list_programs` / `search_programs` gained an optional `feed` filter
   (exact id); `data.programs()` is federated so spanning feeds is automatic.
-- [ ] 2.2 `list_sources` READ op returning `data.sources()` (per-feed `{ id, source, prefix?, status,
+- [x] 2.2 `list_sources` READ op returning `data.sources()` (per-feed `{ id, source, prefix?, status,
   count, error?, collisions_dropped }`).
-- [ ] 2.3 `app.ts`/`AppOptions`: accept `sources`; thread into `DataSource`. (Worker env wiring of a
-  feed list is deferred to deploy config — note it; not required for the capability.)
-- [ ] 2.4 Tests: a failing feed is skipped, the rest serve, and `list_sources` reports it `failed`
-  with the error; a single failing feed throws; the `feed` filter narrows results; op-count/parity
-  assertions updated for `list_sources`.
+- [x] 2.3 `AppOptions extends DataSourceOptions`, so `sources` already threads through `buildApp` →
+  `DataSource` with no change. (Worker env wiring of a feed list deferred to deploy config.)
+- [x] 2.4 Tests: the `feed` filter narrows results; `list_sources` reports a `failed` feed with its
+  error while the rest serve; `list_sources` is introspectable as READ; op-count assertions bumped
+  31→32 (`transports.test.mjs`) + the `router.test.mjs` READ list.
 
 ## 3. Validate + archive
 
