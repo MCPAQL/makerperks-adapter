@@ -34,6 +34,12 @@ const NEXT_STAGE: Record<Exclude<ExecutionStage, "done">, ExecutionStage> = {
 
 const CONFIRMATION_TTL_MS = 5 * 60 * 1000;
 
+// A submission that will unseal a vault credential is floored to at least this danger for the
+// autonomy decision (#95), so a stored secret is never used under `auto_low_risk` without the
+// human in the loop. `full_auto` (gate 3) still auto-proceeds at the floor — the maker's explicit
+// choice — and only `scoped_token` ever auto-fills (see handoff.buildApplicationPackage).
+const CREDENTIAL_DANGER_FLOOR = 2;
+
 /** A stable, key-sorted serialization used to bind a confirmation token to its inputs. */
 function stableStringify(value: unknown): string {
   if (value === null || typeof value !== "object") return JSON.stringify(value);
@@ -190,7 +196,17 @@ export function registerExecuteOperations(
       // token. `consumed` carries the token to mark used in the same write that advances.
       let consumed: ConfirmationToken | undefined;
       const mode = state.autonomy ?? "review_each";
-      const decision = autonomyDecision(mode, flow.danger_level);
+      const credentialId = params.credential_id as string | undefined;
+      // #95: a submission that will unseal a credential floors the gate danger so it cannot
+      // silently auto-proceed under auto_low_risk; the host's tool-permission prompt on
+      // mcp_aql_execute remains the primary human gate, and the confirmation token is the
+      // host-independent fallback.
+      const usingCredential =
+        execution.stage === "submission" && credentialId !== undefined;
+      const gateDanger = usingCredential
+        ? Math.max(flow.danger_level, CREDENTIAL_DANGER_FLOOR)
+        : flow.danger_level;
+      const decision = autonomyDecision(mode, gateDanger);
       if (execution.stage === "submission" && decision !== "go") {
         const now = Date.now();
         const paramsHash = stableStringify(mergedInputs);
@@ -224,10 +240,20 @@ export function registerExecuteOperations(
             mode,
             confirmation_token: ct.token,
             danger_level: flow.danger_level,
+            ...(usingCredential
+              ? { credential_use: true, gate_danger: gateDanger }
+              : {}),
+            // Honesty (#96): the confirmation_token is agent-replayable, so it is NOT by itself
+            // an out-of-band human challenge. The real human gate is the host's tool-permission
+            // prompt on mcp_aql_execute; the token is a host-independent fallback. At danger >= 3
+            // any vault credential also stays sealed regardless (see buildApplicationPackage).
+            human_gate:
+              "Primary human approval is your host's tool-permission prompt on mcp_aql_execute; " +
+              "the confirmation_token is a host-independent fallback, not a standalone human challenge.",
             reason:
               decision === "stop"
-                ? `submission for ${execution.slug} is danger ${flow.danger_level} — out-of-band challenge required`
-                : `submission for ${execution.slug} is danger ${flow.danger_level} (mode ${mode}) — confirm to proceed`,
+                ? `submission for ${execution.slug} is danger ${flow.danger_level} — requires explicit human approval; any vault credential stays sealed at this tier`
+                : `submission for ${execution.slug} is ${usingCredential ? `credential use (gate danger ${gateDanger})` : `danger ${flow.danger_level}`} (mode ${mode}) — confirm to proceed`,
             expires_at: ct.expiresAt,
             next_step: "resume submit_step with the confirmation_token to proceed",
           });
@@ -258,7 +284,6 @@ export function registerExecuteOperations(
       let credentialEntry: VaultEntry | undefined;
       let credentialRec: UserRecord | undefined;
       let auditRecord: UserRecord | undefined;
-      const credentialId = params.credential_id as string | undefined;
       if (execution.stage === "submission" && credentialId) {
         if (!profileStore) {
           return err("NOT_FOUND_RESOURCE", "no credential vault in this deployment", {

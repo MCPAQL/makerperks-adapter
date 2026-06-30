@@ -167,6 +167,21 @@ test("review_each keeps every proposal pending", async () => {
   assert.ok(!res.data.auto_accepted);
 });
 
+test("a credential-bearing flow never auto-accepts, even full_auto at danger 0 (#95)", async () => {
+  const { router } = await withQueue();
+  await d(router, "set_acceptance_mode", { mode: "full_auto" });
+  const candidate = {
+    ...ready(0),
+    required_inputs: [
+      { key: "api_key", type: "string", required: true, source: "credential" },
+    ],
+  };
+  const res = await d(router, "propose_flow", { slug: SLUG, candidate });
+  assert.equal(res.data.verdict.ready_for_proposal, true); // it IS ready…
+  assert.equal(res.data.status, "pending"); // …but a credential flow waits for a human
+  assert.ok(!res.data.auto_accepted);
+});
+
 test("auto_low_risk auto-accepts ready danger<=1 and escalates the rest", async () => {
   const { router } = await withQueue();
   await d(router, "set_acceptance_mode", { mode: "auto_low_risk" });

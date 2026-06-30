@@ -29,14 +29,35 @@ function dangerOf(candidate: CuratedFlow): number {
   return typeof d === "number" && [0, 1, 2, 3, 4].includes(d) ? d : 0;
 }
 
+/** Whether a candidate flow requires a stored vault credential to apply (`source: "credential"`). */
+function hasCredentialInput(candidate: CuratedFlow): boolean {
+  const inputs = (candidate as { required_inputs?: unknown }).required_inputs;
+  return (
+    Array.isArray(inputs) &&
+    inputs.some(
+      (i) =>
+        i !== null &&
+        typeof i === "object" &&
+        (i as { source?: unknown }).source === "credential",
+    )
+  );
+}
+
 /**
  * Whether a proposal auto-accepts at submission under the dial. In every mode it must be
  * `ready` (so eligibility, which blocks readiness, is never auto-asserted) and `danger ≤ 2`
  * (danger ≥ 3 — payment / real identity — always waits for an explicit human `accept_flow`):
  * review_each never auto-accepts; auto_low_risk accepts danger ≤ 1; full_auto accepts danger ≤ 2.
+ * A flow that requires a vault credential (#95) NEVER auto-accepts — publishing it would put a
+ * stored secret in play for every user, so it always waits for an explicit human `accept_flow`.
  */
-function autoAccepts(mode: AcceptanceMode, ready: boolean, danger: number): boolean {
-  if (!ready || danger >= 3) return false;
+function autoAccepts(
+  mode: AcceptanceMode,
+  ready: boolean,
+  danger: number,
+  credentialInput: boolean,
+): boolean {
+  if (!ready || danger >= 3 || credentialInput) return false;
   if (mode === "auto_low_risk") return danger <= 1;
   if (mode === "full_auto") return danger <= 2;
   return false; // review_each
@@ -147,6 +168,7 @@ export function registerFlowAcceptanceOperations(
           await registry.mode(),
           verdict.ready_for_proposal,
           proposal.danger_level,
+          hasCredentialInput(candidate),
         )
       ) {
         const decided = await registry.decide(proposal.id, "accepted");

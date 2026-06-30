@@ -231,3 +231,23 @@ test("buildApplicationPackage: no vault key keeps the credential pending (fail s
     "credential",
   );
 });
+
+test("buildApplicationPackage: only scoped_token auto-exposes; password / identity_document never (#95)", async () => {
+  for (const kind of ["password", "identity_document"]) {
+    const { vault, credential } = await makeVaultAndEntry("super-secret");
+    const pkg = await buildApplicationPackage(webFlow, execution(), profile({}), {
+      vault,
+      credential: { ...credential, kind }, // danger <= 2 flow, but a sensitive kind
+    });
+    assert.equal(
+      pkg.assembled_inputs.some((i) => i.key === "billing_account_id"),
+      false,
+      `${kind} must never be auto-exposed`,
+    );
+    assert.equal(
+      pkg.pending_inputs.find((i) => i.key === "billing_account_id").reason,
+      "credential",
+      `${kind} stays pending / out-of-band`,
+    );
+  }
+});

@@ -313,6 +313,28 @@ test("review_each halts even a danger-0 submission", async () => {
   assert.equal(r.data.challenge_required, false);
 });
 
+test("auto_low_risk: a credential-using submission floors to pause (#95-C, #96)", async () => {
+  const { router } = await build();
+  await setMode(router, "auto_low_risk");
+  // danger-0 flow WITHOUT a credential auto-proceeds (gate 2 > danger 0 → go)…
+  const idNo = await driveToSubmission(router, "neon/neon-free-tier");
+  const noCred = await processSubmission(router, idNo);
+  assert.notEqual(noCred.data.status, "halted");
+  // …but supplying a credential_id floors the gate danger to 2, so it pauses (halts before
+  // the credential is ever looked up). The host prompt is the real gate; the token is fallback.
+  const idCred = await driveToSubmission(router, "neon/neon-free-tier");
+  const withCred = await router.dispatch({
+    operation: "submit_step",
+    params: { execution_id: idCred, credential_id: "any" },
+  });
+  assert.equal(withCred.data.status, "halted");
+  assert.equal(withCred.data.decision, "pause");
+  assert.equal(withCred.data.credential_use, true);
+  assert.equal(withCred.data.gate_danger, 2);
+  assert.ok(withCred.data.human_gate, "#96 honest human-gate note is present");
+  assert.doesNotMatch(withCred.data.reason, /out-of-band challenge required/);
+});
+
 test("auto_low_risk lets danger-0 through but halts danger-2", async () => {
   const { router } = await build();
   await setMode(router, "auto_low_risk");

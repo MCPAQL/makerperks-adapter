@@ -72,6 +72,9 @@ proposal is auto-accepted only when it is `ready_for_proposal` **and** `danger_l
 2`. In **every** mode the verification gate runs, eligibility is never auto-asserted (an
 eligibility finding makes a proposal not-ready, so it cannot auto-accept), and a proposal with
 `danger_level ≥ 3` (payment / real identity) SHALL never be auto-accepted — it requires an explicit
+human `accept_flow`. A proposal whose flow requires a stored vault credential (any
+`required_inputs` entry with `source: "credential"`) SHALL **never** be auto-accepted in any mode —
+publishing it would put a stored secret in play for every user — and SHALL wait for an explicit
 human `accept_flow`.
 
 #### Scenario: Default is review_each
@@ -92,11 +95,11 @@ human `accept_flow`.
 - **THEN** it stays pending for an explicit human `accept_flow` (the challenge floor), and is not
   served until then
 
-#### Scenario: A not-ready proposal is never auto-accepted in any mode
+#### Scenario: A credential-bearing flow is never auto-accepted
 
-- **WHEN** any mode is set and a candidate with an eligibility (or schema/provenance) finding is
-  proposed
-- **THEN** it is not auto-accepted (eligibility is surfaced, never asserted), regardless of mode
+- **WHEN** the mode is `full_auto` and a `ready_for_proposal` candidate at `danger_level ≤ 2` whose
+  `required_inputs` include a `source: "credential"` input is proposed
+- **THEN** it stays pending for an explicit human `accept_flow`, and is not served until then
 
 ### Requirement: Accepted flows are published to the served overlay
 

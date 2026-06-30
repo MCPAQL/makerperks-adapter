@@ -85,6 +85,19 @@ Other local env knobs: `MAKERPERKS_FLOWS` (a `flows.json` application-flow overl
 `MAKERPERKS_VAULT_DIR` (where the encrypted credential vault keyfile lives; default
 `~/.makerperks`).
 
+### Recommended: keep a human in the loop (gate the mutating endpoints)
+
+The server exposes its operations as the five CRUDE tools — `mcp_aql_read` and the mutating
+`mcp_aql_create` / `mcp_aql_update` / `mcp_aql_delete` / `mcp_aql_execute`. Every read is on
+`mcp_aql_read` (safe to auto-approve); everything that changes state or acts on your behalf
+(profile/credential writes, application submissions via `mcp_aql_execute`) is on a **mutating**
+tool. So in your MCP client's tool-permission settings, **auto-approve `mcp_aql_read` and require
+approval for the four mutating tools** (at least `mcp_aql_execute`, which drives submissions). That
+host prompt is your real human-in-the-loop: the connected agent cannot approve it for you. The
+server also keeps a host-independent confirmation step for higher-danger submissions, and never
+auto-exposes a `password` or `identity_document` from the vault regardless of host settings — but
+gating the mutating tools is the primary control, so set it deliberately.
+
 ---
 
 ## 2. The feed format (`perks.json` / `grants.json` / …)
