@@ -17,6 +17,7 @@ export type ErrorCode =
   | "VALIDATION_MISSING_PARAM"
   | "VALIDATION_INVALID_TYPE"
   | "VALIDATION_UNKNOWN_PARAM"
+  | "VALIDATION_ENDPOINT_MISMATCH" // op invoked via the wrong CRUDE endpoint (#93; spec crude-pattern §5)
   | "NOT_FOUND_OPERATION"
   | "NOT_FOUND_RESOURCE"
   | "CONFLICT_EXISTS" // a CREATE for a resource that already exists (#34 CRUDE)
