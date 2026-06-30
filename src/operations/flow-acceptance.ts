@@ -12,6 +12,7 @@ import type { FlowSource } from "../data/flow-source.js";
 import { collectProposalFindings, diffFlow } from "../data/discovery.js";
 import { statusProposalCheck } from "../data/status.js";
 import type { CuratedFlow, CuratedFlows } from "../data/flows.js";
+import { deriveFlow, mergeFlow } from "../data/flows.js";
 import type { ProfileStore } from "../session/profile.js";
 import {
   ACCEPTANCE_MODES,
@@ -29,9 +30,15 @@ function dangerOf(candidate: CuratedFlow): number {
   return typeof d === "number" && [0, 1, 2, 3, 4].includes(d) ? d : 0;
 }
 
-/** Whether a candidate flow requires a stored vault credential to apply (`source: "credential"`). */
-function hasCredentialInput(candidate: CuratedFlow): boolean {
-  const inputs = (candidate as { required_inputs?: unknown }).required_inputs;
+/**
+ * Whether a flow requires a stored vault credential to apply (any `source: "credential"` input).
+ * Evaluated on the EFFECTIVE served flow, not the candidate overlay alone: a candidate may omit
+ * `required_inputs` and still inherit a baseline credential input (e.g. a student-audience
+ * program derives `student_verification` with `source: "credential"`), which `mergeFlow` keeps
+ * when the overlay does not override it.
+ */
+function hasCredentialInput(flow: { required_inputs?: unknown }): boolean {
+  const inputs = flow.required_inputs;
   return (
     Array.isArray(inputs) &&
     inputs.some(
@@ -168,7 +175,9 @@ export function registerFlowAcceptanceOperations(
           await registry.mode(),
           verdict.ready_for_proposal,
           proposal.danger_level,
-          hasCredentialInput(candidate),
+          // Check the EFFECTIVE served flow (overlay merged over the derived baseline), so a
+          // candidate cannot dodge the gate by omitting an inherited credential input (#95).
+          hasCredentialInput(mergeFlow(deriveFlow(program), candidate)),
         )
       ) {
         const decided = await registry.decide(proposal.id, "accepted");

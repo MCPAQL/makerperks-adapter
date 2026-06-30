@@ -55,9 +55,12 @@ handoff package for an external browser-automation agent. The adapter SHALL NOT 
 
 A step whose danger level meets or exceeds the gate threshold SHALL halt the batch and
 return `CONFIRMATION_REQUIRED` together with a confirmation token that is **single-use**,
-**time-limited**, and **param-bound** (to the execution, stage, and inputs). The agent SHALL
-resume by replaying the step with the token; the server SHALL verify and consume it. A
-missing, expired, already-used, or parameter-mismatched token SHALL be rejected.
+**time-limited**, and **param-bound** (to the execution, stage, inputs, and — when the submission
+uses a stored credential — the **credential id**). The agent SHALL resume by replaying the step
+with the token; the server SHALL verify and consume it. A missing, expired, already-used, or
+parameter-mismatched token SHALL be rejected, and a token replayed with a different `credential_id`
+than the one it was issued for SHALL be rejected (an approval for one stored secret cannot
+authorize a different one).
 
 A `submission` step that will unseal a stored vault credential (a `credential_id` is supplied)
 SHALL floor the gate danger to at least the pause tier, so a credential is never used under
@@ -85,6 +88,11 @@ sealed regardless of confirmation (see `live-application`).
 #### Scenario: A token is bound to its parameters
 
 - **WHEN** a token is presented for a step whose inputs differ from those it was issued for
+- **THEN** it is rejected
+
+#### Scenario: A token cannot authorize a different credential
+
+- **WHEN** a token issued for a submission with `credential_id` A is replayed with `credential_id` B
 - **THEN** it is rejected
 
 #### Scenario: A credential-using submission floors to a pause

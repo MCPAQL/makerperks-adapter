@@ -335,6 +335,26 @@ test("auto_low_risk: a credential-using submission floors to pause (#95-C, #96)"
   assert.doesNotMatch(withCred.data.reason, /out-of-band challenge required/);
 });
 
+test("the approval token is bound to the credential id; a swap is rejected (#95, P1)", async () => {
+  const { router } = await build();
+  await setMode(router, "review_each"); // halts every submission
+  const id = await driveToSubmission(router, "neon/neon-free-tier");
+  // Approve for credential "A"…
+  const halted = await router.dispatch({
+    operation: "submit_step",
+    params: { execution_id: id, credential_id: "A" },
+  });
+  assert.equal(halted.data.status, "halted");
+  const token = halted.data.confirmation_token;
+  // …replaying that token with a DIFFERENT credential id must be rejected.
+  const swapped = await router.dispatch({
+    operation: "submit_step",
+    params: { execution_id: id, credential_id: "B", confirmation_token: token },
+  });
+  assert.equal(swapped.error.code, "CONFIRMATION_REJECTED");
+  assert.match(swapped.error.message, /credential changed/);
+});
+
 test("auto_low_risk lets danger-0 through but halts danger-2", async () => {
   const { router } = await build();
   await setMode(router, "auto_low_risk");

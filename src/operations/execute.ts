@@ -218,6 +218,7 @@ export function registerExecuteOperations(
             executionId,
             stage: "submission",
             paramsHash,
+            ...(credentialId !== undefined ? { credentialId } : {}),
             issuedAt: now,
             expiresAt: now + CONFIRMATION_TTL_MS,
             used: false,
@@ -273,6 +274,9 @@ export function registerExecuteOperations(
         }
         if (ct.paramsHash !== paramsHash) {
           return reject("inputs changed since the token was issued");
+        }
+        if (ct.credentialId !== credentialId) {
+          return reject("credential changed since the token was issued");
         }
         consumed = ct;
       }
