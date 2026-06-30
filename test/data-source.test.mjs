@@ -165,6 +165,24 @@ test("an integrity mismatch drops the feed fail-soft; siblings still serve (#97)
   assert.equal(ds.programs().length, 1); // the primary feed still served
 });
 
+test("feedTrust is fail-safe when two feeds share an id (untrusted wins) (#97)", async () => {
+  // Two feeds on the same host with `id` omitted derive the SAME id — the secondary is untrusted.
+  // feedTrust for that shared id must NOT classify it trusted off the primary's status (fail-open).
+  const fetchImpl = async (url) =>
+    new Response(onePerk(String(url).includes("grants") ? "g/0" : "p/0"), {
+      status: 200,
+    });
+  const ds = new DataSource({
+    sources: [
+      { source: "https://dup.test/perks.json" }, // id derives to "dup.test" (primary → trusted)
+      { source: "https://dup.test/grants.json", prefix: "g" }, // same id "dup.test" (extra → untrusted)
+    ],
+    fetchImpl,
+  });
+  await ds.load();
+  assert.equal(ds.feedTrust("dup.test"), "untrusted"); // a colliding untrusted feed forces untrusted
+});
+
 test("a lone feed with a bad integrity hash stays loud (throws) (#97)", async () => {
   const fetchImpl = async () => new Response(onePerk(), { status: 200 });
   const ds = new DataSource({

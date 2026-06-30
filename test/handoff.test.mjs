@@ -72,7 +72,7 @@ test("buildHandoff: profile fields assemble; a credential field stays pending wi
   assert.equal("value" in cred, false); // never carries a value
   assert.match(cred.note, /out-of-band/);
 
-  assert.equal(pkg.action_url, "https://apply.example");
+  assert.equal(pkg.action_url, "https://apply.example/"); // canonicalized href
   assert.equal(pkg.danger_level, 2);
   assert.deepEqual(pkg.gaps, ["eligibility must be verified by the maker"]);
 });

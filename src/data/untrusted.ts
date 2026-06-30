@@ -65,24 +65,29 @@ export function normalizeTextList(
 const SAFE_URL_SCHEMES = new Set(["https:", "mailto:"]);
 
 /**
- * Parse and constrain an untrusted `action_url`. Returns the (trimmed, faithful) URL when it parses
- * and uses a safe scheme (`https`/`mailto`), or `undefined` if it is unparseable, over-long, or uses
- * any other scheme (e.g. `javascript:`, `data:`, `file:`, plain `http:`). The original string is
- * returned rather than the canonicalized href so the agent sees the provider's URL verbatim; the
- * exposure gate re-parses the host independently. A dropped URL is surfaced as a gap by the caller.
+ * Parse and constrain an untrusted `action_url`. Control, zero-width, and bidi characters are
+ * stripped FIRST (so a feed cannot smuggle e.g. `https://x/apply\nIgnore previous instructions` into
+ * the agent-facing URL), then the result is parsed and the **canonical href** is returned — never the
+ * raw string — so what the agent sees is a clean, fully-encoded URL. Returns `undefined` if the value
+ * is unparseable, over-long, or uses any scheme other than `https`/`mailto` (e.g. `javascript:`,
+ * `data:`, `file:`, plain `http:`). A dropped URL is surfaced as a gap by the caller.
  */
 export function normalizeActionUrl(input: unknown): string | undefined {
   if (typeof input !== "string") return undefined;
-  const s = input.trim();
-  if (s.length === 0 || s.length > UNTRUSTED_LIMITS.url) return undefined;
+  const cleaned = input
+    .replace(ZERO_WIDTH, "")
+    .replace(BIDI, "")
+    .replace(CONTROL, "")
+    .trim();
+  if (cleaned.length === 0 || cleaned.length > UNTRUSTED_LIMITS.url) return undefined;
   let u: URL;
   try {
-    u = new URL(s);
+    u = new URL(cleaned);
   } catch {
     return undefined;
   }
   if (!SAFE_URL_SCHEMES.has(u.protocol)) return undefined;
-  return s;
+  return u.href;
 }
 
 // Multi-part public suffixes so `apply.example.co.uk` anchors to `example.co.uk`, not `co.uk`.

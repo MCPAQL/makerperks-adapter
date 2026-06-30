@@ -344,8 +344,12 @@ export class DataSource {
    */
   feedTrust(feedId?: string): "trusted" | "untrusted" {
     if (!feedId) return "untrusted";
-    const status = this.feedStatuses.find((s) => s.id === feedId);
-    return status?.trust ?? "untrusted";
+    // Resolve across ALL statuses sharing this id (ids can collide when two feeds derive the same id
+    // from the same host). Fail-safe: `trusted` only if EVERY feed with this id is trusted — an
+    // untrusted feed sharing an id with a trusted one never grants the credential auto-expose path.
+    const matches = this.feedStatuses.filter((s) => s.id === feedId);
+    if (matches.length === 0) return "untrusted";
+    return matches.every((s) => s.trust === "trusted") ? "trusted" : "untrusted";
   }
 
   /** Federated directory metadata (the primary feed's meta + the federated count). Feed ids are in
