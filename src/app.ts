@@ -177,6 +177,7 @@ export async function buildApp(
     overlayMirror,
     proposer,
     operator,
+    actionUrlFormHosts,
     ...dataOptions
   } = options;
   const data = new DataSource(dataOptions);
@@ -191,6 +192,7 @@ export async function buildApp(
     overlayMirror,
     proposer,
     operator,
+    actionUrlFormHosts,
   });
   return { router, data, flows };
 }

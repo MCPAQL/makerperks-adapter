@@ -165,12 +165,18 @@ function hostOf(url?: string): string {
   }
 }
 
-/** Does `host` match an operator form-host allowlist entry (exact, subdomain, or `*.host`)? */
+/**
+ * Does `host` match an operator form-host allowlist entry? An entry matches its **exact host and any
+ * subdomain of it** — a `*.host` wildcard is just a more explicit spelling of the same (the `*.` is
+ * stripped). It deliberately does NOT match by shared registrable domain: an exact entry like
+ * `acme.forms.vendor.com` must not also admit a sibling tenant `evil.forms.vendor.com`. To allow a
+ * whole platform, the operator writes the platform host explicitly (`*.vendor.com` / `vendor.com`).
+ */
 function matchesFormHost(host: string, formHosts: readonly string[]): boolean {
   return formHosts.some((raw) => {
     const f = raw.trim().toLowerCase().replace(/^\*\./, "");
     if (!f) return false;
-    return host === f || host.endsWith("." + f) || sameRegistrableDomain(host, f);
+    return host === f || host.endsWith("." + f);
   });
 }
 

@@ -141,6 +141,26 @@ test("isExposureUrlAllowed: form-host allowlist permits an off-domain host", () 
   );
 });
 
+test("isExposureUrlAllowed: an exact form-host entry does NOT admit a sibling tenant (#97 P1)", () => {
+  // Allowlisting one tenant on a shared host must not also allow an unrelated sibling tenant.
+  const base = {
+    anchorUrl: "https://stripe.com",
+    formHosts: ["acme.forms.vendor.com"],
+  };
+  assert.ok(
+    isExposureUrlAllowed({ ...base, actionUrl: "https://acme.forms.vendor.com/x" }),
+    "the exact allowlisted host is permitted",
+  );
+  assert.ok(
+    isExposureUrlAllowed({ ...base, actionUrl: "https://sub.acme.forms.vendor.com/x" }),
+    "a subdomain of the allowlisted host is permitted",
+  );
+  assert.ok(
+    !isExposureUrlAllowed({ ...base, actionUrl: "https://evil.forms.vendor.com/x" }),
+    "a sibling tenant on the same platform is rejected",
+  );
+});
+
 test("isExposureUrlAllowed: missing or host-less URL is denied (fail safe)", () => {
   assert.ok(!isExposureUrlAllowed({ anchorUrl: "https://stripe.com" }));
   assert.ok(
