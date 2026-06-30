@@ -40,30 +40,30 @@ const GATED_TOOLS: { name: string; category: SemanticCategory; description: stri
       category: "CREATE",
       description:
         "Semantic CREATE endpoint. Discover its operations via introspect (e.g. " +
-        "create_profile), then call them here.",
+        "create_profile, add_project), then call them here.",
     },
     {
       name: "mcp_aql_update",
       category: "UPDATE",
       description:
         "Semantic UPDATE endpoint. Discover its operations via introspect (e.g. " +
-        "update_profile, add_project, remove_project), then call them here.",
+        "update_profile, update_project, set_autonomy), then call them here.",
     },
     {
       name: "mcp_aql_delete",
       category: "DELETE",
       description:
         "Semantic DELETE endpoint. Discover its operations via introspect (e.g. " +
-        "delete_profile), then call them here.",
+        "delete_profile, remove_project), then call them here.",
     },
     {
       name: "mcp_aql_execute",
       category: "EXECUTE",
       description:
         "Semantic EXECUTE endpoint that drives (simulated) perk applications. " +
-        "Discover the EXECUTE operations via introspect (start_application, submit_step, " +
-        "get_status, record_execution_step), then call them here. Steps may halt with " +
-        "CONFIRMATION_REQUIRED and a token to replay.",
+        "Discover the EXECUTE operations via introspect (start_application, submit_step), " +
+        "then call them here. Steps may halt with CONFIRMATION_REQUIRED and a token to replay. " +
+        "Inspection ops like get_status / get_handoff are READ (call them via mcp_aql_read).",
     },
   ];
 
