@@ -30,7 +30,11 @@ resolvePreferredMethod(authPreferences, oauthProviders):
   surfaced `oauth_providers` list. The package never *invents* a preference the maker didn't state.
 
 Computed only when the flow advertises `oauth_providers` (i.e. it's a real OAuth signup) — other
-flows carry no `preferred_method`.
+flows carry no `preferred_method`. This scoping is deliberate: `email_password` is a *heuristic*
+default assumed available alongside the curated OAuth buttons, so it is only applied to a page a
+human has curated with `oauth_providers` (an inspected page), never to an un-curated `oauth_signup`
+baseline whose actual signup methods are unknown. An un-curated `oauth_signup` flow surfaces neither
+field — the agent keeps its existing default behavior.
 
 ## Profile field
 

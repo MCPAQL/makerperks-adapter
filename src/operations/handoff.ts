@@ -91,6 +91,10 @@ export interface HandoffPackage {
    * #103: the maker's preferred signup method resolved against this flow's supported methods (its
    * OAuth providers + `email_password`). Tells the agent which button to steer the maker toward.
    * Omitted when the flow advertises no providers, or the maker stated no usable preference.
+   * NOTE: `email_password` is treated as a HEURISTIC default available alongside the curated OAuth
+   * buttons — not confirmed per-flow. This is only surfaced for flows a human curated with
+   * `oauth_providers` (so the assumption applies to an inspected page); `oauth_providers` is surfaced
+   * alongside, so the agent is never solely dependent on `preferred_method`.
    */
   preferred_method?: string;
 }
