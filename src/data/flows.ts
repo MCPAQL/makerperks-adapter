@@ -236,6 +236,12 @@ export function collectCuratedFlowErrors(data: unknown): string[] {
             errors.push(
               `${at}/submission/oauth_providers must be a string[] of ${OAUTH_PROVIDERS.join(", ")}`,
             );
+          } else if (r.submission.method !== "oauth_signup") {
+            // oauth_providers only makes sense on an OAuth signup — otherwise the handoff would
+            // surface OAuth buttons for a plain web-form/api flow.
+            errors.push(
+              `${at}/submission/oauth_providers is only valid when method is "oauth_signup"`,
+            );
           }
         }
       }

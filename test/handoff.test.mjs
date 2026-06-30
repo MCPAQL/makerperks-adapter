@@ -422,3 +422,23 @@ test("buildHandoff: no maker preference → providers surfaced, preferred_method
   assert.deepEqual(pkg.oauth_providers, ["github", "google"]);
   assert.equal("preferred_method" in pkg, false);
 });
+
+test("buildHandoff: a non-oauth_signup method never surfaces OAuth fields, even with stray oauth_providers (#103 defense in depth)", () => {
+  // a malformed flow (web_form + oauth_providers — which the validator rejects) must still not
+  // steer the agent toward an OAuth button.
+  const stray = {
+    ...oauthFlow(["github", "google"]),
+    submission: {
+      method: "web_form",
+      action_url: "https://x/y",
+      oauth_providers: ["github"],
+    },
+  };
+  const pkg = buildHandoff(
+    stray,
+    execution(),
+    profile({ auth_preferences: ["github", "email_password"] }),
+  );
+  assert.equal("oauth_providers" in pkg, false);
+  assert.equal("preferred_method" in pkg, false);
+});

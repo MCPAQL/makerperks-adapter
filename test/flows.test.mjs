@@ -143,6 +143,18 @@ test("validator: accepts valid submission.oauth_providers, rejects an unknown on
   assert.ok(errs.some((e) => e.includes("oauth_providers")));
 });
 
+test("validator: rejects oauth_providers on a non-oauth_signup method (#103)", () => {
+  const bad = {
+    "p/q": {
+      submission: { method: "web_form", oauth_providers: ["github"] },
+    },
+  };
+  const errs = collectCuratedFlowErrors(bad);
+  assert.ok(
+    errs.some((e) => e.includes("oauth_providers") && e.includes("oauth_signup")),
+  );
+});
+
 // --- §2: curated overlay + merge ---
 
 test("merge: no overlay → derived unchanged", () => {

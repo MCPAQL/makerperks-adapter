@@ -157,8 +157,13 @@ export function buildHandoff(
   }
 
   // #103: resolve the maker's preferred signup method against this flow's advertised OAuth providers
-  // (email_password is always an option on a signup page). Empty list → not an OAuth-button flow.
-  const oauthProviders = flow.submission.oauth_providers ?? [];
+  // (email_password is always an option on a signup page). Gated on BOTH an `oauth_signup` method and
+  // a non-empty providers list — a non-OAuth flow never surfaces OAuth fields, even if a malformed
+  // overlay slipped `oauth_providers` past validation (defense in depth alongside the #103 validator).
+  const oauthProviders =
+    flow.submission.method === "oauth_signup"
+      ? (flow.submission.oauth_providers ?? [])
+      : [];
   const preferredMethod = oauthProviders.length
     ? resolvePreferredMethod(profile?.identity.auth_preferences, oauthProviders)
     : undefined;
