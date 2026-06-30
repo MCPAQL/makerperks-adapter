@@ -9,7 +9,9 @@ curated overlay merge unchanged. Each entry SHALL be validated against the known
 an unknown provider SHALL be rejected. `oauth_providers` SHALL be valid ONLY when the submission
 `method` is `oauth_signup`; declaring it on any other method SHALL be a validation error (otherwise
 the handoff could surface OAuth buttons for a plain web-form or api flow). The list is descriptive
-(which buttons exist) and grants no new authority.
+(which buttons exist) and grants no new authority. The discovery-brief Flow Document contract
+(`curatedFlowContract`) SHALL advertise the valid OAuth-provider enum so an agent authoring a flow
+discovers the same values the validator enforces (no drift between brief and gate).
 
 #### Scenario: A curated flow declares its OAuth providers
 

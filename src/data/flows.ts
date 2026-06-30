@@ -126,6 +126,8 @@ export interface CuratedFlowContract {
   enums: {
     automatability: readonly string[];
     submission_method: readonly string[];
+    /** #103: valid `submission.oauth_providers` entries (only on an `oauth_signup` method). */
+    oauth_provider: readonly string[];
     redemption_type: readonly string[];
     input_source: readonly string[];
     input_type: readonly string[];
@@ -149,6 +151,7 @@ export function curatedFlowContract(): CuratedFlowContract {
     enums: {
       automatability: AUTOMATABILITY,
       submission_method: SUBMISSION_METHODS,
+      oauth_provider: OAUTH_PROVIDERS,
       redemption_type: REDEMPTION_TYPES,
       input_source: INPUT_SOURCES,
       input_type: INPUT_TYPES,
