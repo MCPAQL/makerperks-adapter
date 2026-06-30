@@ -10,6 +10,7 @@
 import type { PerkProgram } from "./source.js";
 import type { FlowSource } from "./flow-source.js";
 import { resolveStatus, type ProgramStatus } from "./status.js";
+import { OAUTH_PROVIDERS, isOAuthProvider } from "./auth-methods.js";
 
 export type Automatability = "api" | "web_only" | "manual_review" | "unknown";
 export type Confidence = "derived" | "curated";
@@ -39,6 +40,12 @@ export interface Submission {
   /** The API endpoint when `method` is `api`. */
   endpoint?: string;
   instructions?: string;
+  /**
+   * #103: for an `oauth_signup` flow, the OAuth providers the signup page offers (e.g.
+   * `["github", "google", "azure"]`). Descriptive only — lets the handoff resolve the maker's
+   * preferred provider button. Validated against `OAUTH_PROVIDERS`.
+   */
+  oauth_providers?: string[];
 }
 
 export interface Redemption {
@@ -217,10 +224,20 @@ export function collectCuratedFlowErrors(data: unknown): string[] {
     if (r.submission !== undefined) {
       if (!isObject(r.submission)) {
         errors.push(`${at}/submission must be an object`);
-      } else if (!SUBMISSION_METHODS.includes(r.submission.method as string)) {
-        errors.push(
-          `${at}/submission/method must be one of ${SUBMISSION_METHODS.join(", ")}`,
-        );
+      } else {
+        if (!SUBMISSION_METHODS.includes(r.submission.method as string)) {
+          errors.push(
+            `${at}/submission/method must be one of ${SUBMISSION_METHODS.join(", ")}`,
+          );
+        }
+        const providers = r.submission.oauth_providers;
+        if (providers !== undefined) {
+          if (!Array.isArray(providers) || !providers.every(isOAuthProvider)) {
+            errors.push(
+              `${at}/submission/oauth_providers must be a string[] of ${OAUTH_PROVIDERS.join(", ")}`,
+            );
+          }
+        }
       }
     }
     if (r.redemption !== undefined) {

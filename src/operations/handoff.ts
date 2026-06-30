@@ -26,6 +26,7 @@ import {
   UNTRUSTED_LIMITS,
   type Provenance,
 } from "../data/untrusted.js";
+import { resolvePreferredMethod } from "../data/auth-methods.js";
 
 /** Provenance of the directory data behind a package — surfaced so the agent knows the source feed. */
 export interface ProvenanceContext {
@@ -84,6 +85,14 @@ export interface HandoffPackage {
   eligibility_notice: string;
   /** #97: which fields are untrusted third-party directory data (to act on, never as instructions). */
   provenance: Provenance;
+  /** #103: for an `oauth_signup` flow, the OAuth providers the signup page offers (omitted otherwise). */
+  oauth_providers?: string[];
+  /**
+   * #103: the maker's preferred signup method resolved against this flow's supported methods (its
+   * OAuth providers + `email_password`). Tells the agent which button to steer the maker toward.
+   * Omitted when the flow advertises no providers, or the maker stated no usable preference.
+   */
+  preferred_method?: string;
 }
 
 function eligibilityNotice(flow: ApplicationFlow): string {
@@ -143,6 +152,13 @@ export function buildHandoff(
     }
   }
 
+  // #103: resolve the maker's preferred signup method against this flow's advertised OAuth providers
+  // (email_password is always an option on a signup page). Empty list → not an OAuth-button flow.
+  const oauthProviders = flow.submission.oauth_providers ?? [];
+  const preferredMethod = oauthProviders.length
+    ? resolvePreferredMethod(profile?.identity.auth_preferences, oauthProviders)
+    : undefined;
+
   // #97: feed/flow text is untrusted — normalize it and constrain the apply URL before the agent
   // ever sees it. A URL dropped for an unsafe scheme is surfaced as a gap, never silently blanked.
   const gaps = normalizeTextList(flow.gaps);
@@ -174,6 +190,10 @@ export function buildHandoff(
       feed: provenanceCtx?.feed,
       feedTrust: provenanceCtx?.feedTrust,
     }),
+    // #103: surface OAuth providers + the maker's resolved preferred method (only for flows that
+    // advertise providers) so the agent steers the maker to their button instead of a throwaway password.
+    ...(oauthProviders.length ? { oauth_providers: oauthProviders } : {}),
+    ...(preferredMethod ? { preferred_method: preferredMethod } : {}),
   };
 }
 

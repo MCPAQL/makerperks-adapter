@@ -362,3 +362,63 @@ test("buildApplicationPackage: only scoped_token auto-exposes; password / identi
     );
   }
 });
+
+// ── #103: maker auth-method preference on oauth_signup flows ──────────────────
+const oauthFlow = (providers) => ({
+  ...webFlow,
+  automatability: "api",
+  required_inputs: [
+    { key: "email", type: "email", required: true, source: "profile" },
+    { key: "full_name", type: "string", required: true, source: "profile" },
+  ],
+  submission: {
+    method: "oauth_signup",
+    action_url: "https://signup.example/start",
+    oauth_providers: providers,
+  },
+});
+
+test("buildHandoff: surfaces the maker's preferred provider for an oauth_signup flow (#103)", () => {
+  const pkg = buildHandoff(
+    oauthFlow(["google", "github", "azure"]),
+    execution(),
+    profile({ name: "Mick", auth_preferences: ["github", "google", "email_password"] }),
+  );
+  assert.deepEqual(pkg.oauth_providers, ["google", "github", "azure"]);
+  assert.equal(pkg.preferred_method, "github"); // first maker preference the flow offers
+});
+
+test("buildHandoff: falls back to email_password when no OAuth choice is offered (#103)", () => {
+  const pkg = buildHandoff(
+    oauthFlow(["azure"]),
+    execution(),
+    profile({ name: "Mick", auth_preferences: ["github", "email_password"] }),
+  );
+  assert.equal(pkg.preferred_method, "email_password");
+});
+
+test("buildHandoff: omits preferred_method when no stated preference matches (#103)", () => {
+  const pkg = buildHandoff(
+    oauthFlow(["azure"]),
+    execution(),
+    profile({ name: "Mick", auth_preferences: ["github"] }), // no match, no email_password
+  );
+  assert.equal("preferred_method" in pkg, false);
+  assert.deepEqual(pkg.oauth_providers, ["azure"]); // providers still surfaced for the agent
+});
+
+test("buildHandoff: a non-oauth flow carries neither oauth field (#103)", () => {
+  const pkg = buildHandoff(
+    webFlow,
+    execution(),
+    profile({ name: "Mick", auth_preferences: ["github"] }),
+  );
+  assert.equal("oauth_providers" in pkg, false);
+  assert.equal("preferred_method" in pkg, false);
+});
+
+test("buildHandoff: no maker preference → providers surfaced, preferred_method omitted (#103)", () => {
+  const pkg = buildHandoff(oauthFlow(["github", "google"]), execution(), profile({}));
+  assert.deepEqual(pkg.oauth_providers, ["github", "google"]);
+  assert.equal("preferred_method" in pkg, false);
+});

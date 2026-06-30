@@ -127,6 +127,22 @@ test("validator: rejects a non-object overlay", () => {
   assert.ok(collectCuratedFlowErrors([]).length > 0);
 });
 
+test("validator: accepts valid submission.oauth_providers, rejects an unknown one (#103)", () => {
+  const good = {
+    "p/q": {
+      submission: { method: "oauth_signup", oauth_providers: ["github", "google"] },
+    },
+  };
+  assert.deepEqual(collectCuratedFlowErrors(good), []);
+  const bad = {
+    "p/q": {
+      submission: { method: "oauth_signup", oauth_providers: ["github", "myspace"] },
+    },
+  };
+  const errs = collectCuratedFlowErrors(bad);
+  assert.ok(errs.some((e) => e.includes("oauth_providers")));
+});
+
 // --- §2: curated overlay + merge ---
 
 test("merge: no overlay → derived unchanged", () => {
@@ -178,6 +194,8 @@ test("getApplicationFlow: a seeded slug returns the curated (api) flow", () => {
   assert.equal(f.automatability, "api");
   assert.equal(f.redemption.type, "auto");
   assert.equal(f.submission.action_url, "https://console.deepgram.com/signup");
+  // #103: the curated Deepgram flow advertises its OAuth buttons
+  assert.deepEqual(f.submission.oauth_providers, ["google", "github", "azure"]);
 });
 
 test("getApplicationFlow: an unseeded slug returns the derived baseline", () => {

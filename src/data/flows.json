@@ -4,7 +4,8 @@
     "submission": {
       "method": "oauth_signup",
       "action_url": "https://console.deepgram.com/signup",
-      "instructions": "Create a Deepgram Console account (no credit card). The $200 credit is auto-applied. Create an API key under Settings → API Keys."
+      "instructions": "Create a Deepgram Console account (no credit card). The $200 credit is auto-applied. Create an API key under Settings → API Keys.",
+      "oauth_providers": ["google", "github", "azure"]
     },
     "required_inputs": [
       { "key": "email", "type": "email", "required": true, "source": "profile" },
