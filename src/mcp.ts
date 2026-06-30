@@ -76,6 +76,12 @@ export function createMcpServer(router: Router): Server {
   const present = new Set(router.list().map((op) => op.semanticCategory));
   const enabledTools = GATED_TOOLS.filter((t) => present.has(t.category));
   const toolNames = new Set<string>([READ_TOOL, ...enabledTools.map((t) => t.name)]);
+  // Map each registered tool to the semantic category it serves, so dispatch can enforce the
+  // CRUDE endpoint binding (#93). READ_TOOL serves READ; each gated tool serves its category.
+  const categoryForTool = new Map<string, SemanticCategory>([
+    [READ_TOOL, "READ"],
+    ...enabledTools.map((t) => [t.name, t.category] as const),
+  ]);
 
   server.setRequestHandler(ListToolsRequestSchema, async () => {
     const tools = [
@@ -121,7 +127,8 @@ export function createMcpServer(router: Router): Server {
     };
     const operation = typeof args.operation === "string" ? args.operation : "";
     const params = (args.params ?? {}) as Record<string, unknown>;
-    const result = await router.dispatch({ operation, params });
+    const invokingCategory = categoryForTool.get(request.params.name);
+    const result = await router.dispatch({ operation, params }, invokingCategory);
     return {
       content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
       isError: !result.success,

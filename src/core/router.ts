@@ -8,6 +8,16 @@ import { err, type AqlRequest, type Result } from "./wire.js";
 // each maps to its own `mcp_aql_*` tool, exposed only when an op of that category exists.
 export type SemanticCategory = "CREATE" | "READ" | "UPDATE" | "DELETE" | "EXECUTE";
 
+// The CRUDE tool each semantic category is served through (CRUDE mode). Used to name the
+// correct endpoint in a VALIDATION_ENDPOINT_MISMATCH error.
+export const TOOL_FOR_CATEGORY: Record<SemanticCategory, string> = {
+  CREATE: "mcp_aql_create",
+  READ: "mcp_aql_read",
+  UPDATE: "mcp_aql_update",
+  DELETE: "mcp_aql_delete",
+  EXECUTE: "mcp_aql_execute",
+};
+
 export type ParamType = "string" | "number" | "boolean" | "string[]" | "object";
 
 export interface ParamSpec {
@@ -65,13 +75,41 @@ export class Router {
     return [...this.ops.values()];
   }
 
-  /** Validate params (required, type, unknown), then dispatch to the handler. */
-  async dispatch(req: AqlRequest): Promise<Result<unknown>> {
+  /**
+   * Enforce the CRUDE endpoint binding (spec crude-pattern §5, operations §6.3), validate
+   * params (required, type, unknown), then dispatch to the handler.
+   *
+   * `invokingCategory` is the semantic category of the endpoint the request arrived on. When
+   * provided (the MCP boundary always provides it — see mcp.ts), an operation whose
+   * `semanticCategory` differs is REJECTED before any validation or side effect. When omitted
+   * (transport-agnostic in-process callers), the binding check is skipped. `introspect` is the
+   * reserved discovery op and is reachable from every endpoint.
+   */
+  async dispatch(
+    req: AqlRequest,
+    invokingCategory?: SemanticCategory,
+  ): Promise<Result<unknown>> {
     const op = this.ops.get(req.operation);
     if (!op) {
       return err("NOT_FOUND_OPERATION", `unknown operation: ${req.operation}`, {
         operation: req.operation,
       });
+    }
+
+    if (
+      invokingCategory !== undefined &&
+      op.name !== "introspect" &&
+      op.semanticCategory !== invokingCategory
+    ) {
+      return err(
+        "VALIDATION_ENDPOINT_MISMATCH",
+        `Operation '${op.name}' must be called via ${TOOL_FOR_CATEGORY[op.semanticCategory]}, not ${TOOL_FOR_CATEGORY[invokingCategory]}`,
+        {
+          operation: op.name,
+          expected_endpoint: op.semanticCategory,
+          actual_endpoint: invokingCategory,
+        },
+      );
     }
 
     const params = req.params ?? {};
