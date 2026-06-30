@@ -90,7 +90,7 @@ providers, with the human in the loop exactly as much as they choose.
 
 **Scope / deliverables:**
 - **EXECUTE** operations for the application lifecycle (`start_application` →
-  `submit_step` → `get_status`), composed via **batch-with-halting**.
+  `submit_step`), composed via **batch-with-halting** (`get_status` is a READ inspection op).
 - **User-selectable autonomy switch** — asked up front, changeable anytime, keeping
   the user in control. Three modes, implemented as a danger-level threshold enforced
   by confirmation tokens + the Execution Safety Loop:

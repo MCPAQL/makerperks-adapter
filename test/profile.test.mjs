@@ -41,8 +41,9 @@ test("ops carry the right CRUDE semantic categories", async () => {
   assert.equal(byName.create_profile, "CREATE");
   assert.equal(byName.get_profile, "READ");
   assert.equal(byName.update_profile, "UPDATE");
-  assert.equal(byName.add_project, "UPDATE");
-  assert.equal(byName.remove_project, "UPDATE");
+  assert.equal(byName.add_project, "CREATE");
+  assert.equal(byName.update_project, "UPDATE");
+  assert.equal(byName.remove_project, "DELETE");
   assert.equal(byName.delete_profile, "DELETE");
 });
 
@@ -122,6 +123,56 @@ test("add_project assigns an id; remove_project removes it", async () => {
     params: { project_id: projectId },
   });
   assert.equal(gone.error.code, "NOT_FOUND_RESOURCE");
+});
+
+test("update_project merges fields into an existing project; omitted fields are kept", async () => {
+  const { router } = await withProfile();
+  await router.dispatch({ operation: "create_profile", params: {} });
+  const added = await router.dispatch({
+    operation: "add_project",
+    params: { project: { name: "DollhouseMCP", role: "Creator", tags: ["mcp"] } },
+  });
+  const projectId = added.data.project_id;
+
+  const updated = await router.dispatch({
+    operation: "update_project",
+    params: { project_id: projectId, project: { role: "Founder", url: "https://x" } },
+  });
+  assert.equal(updated.success, true);
+  assert.equal(updated.data.project_id, projectId);
+  const p = updated.data.profile.projects[0];
+  assert.equal(p.id, projectId); // id is stable — not a delete+create
+  assert.equal(p.name, "DollhouseMCP"); // omitted field kept
+  assert.equal(p.role, "Founder"); // provided field replaced
+  assert.equal(p.url, "https://x"); // new field added
+  assert.deepEqual(p.tags, ["mcp"]); // omitted field kept
+  assert.equal(updated.data.profile.projects.length, 1); // updated in place, not added
+});
+
+test("update_project with an empty patch is a no-op success", async () => {
+  const { router } = await withProfile();
+  await router.dispatch({ operation: "create_profile", params: {} });
+  const added = await router.dispatch({
+    operation: "add_project",
+    params: { project: { name: "DollhouseMCP", role: "Creator" } },
+  });
+  const projectId = added.data.project_id;
+  const r = await router.dispatch({
+    operation: "update_project",
+    params: { project_id: projectId, project: {} },
+  });
+  assert.equal(r.success, true);
+  assert.deepEqual(r.data.profile.projects[0], added.data.profile.projects[0]);
+});
+
+test("update_project on an unknown id is NOT_FOUND", async () => {
+  const { router } = await withProfile();
+  await router.dispatch({ operation: "create_profile", params: {} });
+  const r = await router.dispatch({
+    operation: "update_project",
+    params: { project_id: "nope", project: { role: "x" } },
+  });
+  assert.equal(r.error.code, "NOT_FOUND_RESOURCE");
 });
 
 test("add_project requires a name", async () => {

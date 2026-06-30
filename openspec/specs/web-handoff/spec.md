@@ -5,7 +5,7 @@ TBD - created by archiving change add-web-handoff. Update Purpose after archive.
 ## Requirements
 ### Requirement: A structured handoff package for non-API perks
 
-The adapter SHALL expose a read-only `get_handoff(execution_id)` EXECUTE operation that builds
+The adapter SHALL expose a read-only `get_handoff(execution_id)` READ operation that builds
 a structured handoff package for an in-flight execution from its accumulated inputs, the maker
 profile, and the program's application flow. The package SHALL carry the `slug`, `provider`,
 `title`, `automatability`, `action_url`, `method`, `instructions`, `danger_level`,

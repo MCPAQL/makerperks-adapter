@@ -27,7 +27,8 @@ Four things, layered, sharing one core:
    flows to the public endpoint. Plus federation + production of `perks.json` feeds.
 4. **Act** — drive the actual signup under a user-controlled autonomy switch, assembling
    from a per-user profile + encrypted credential vault. An **EXECUTE** pipeline
-   (`start_application` → `submit_step` → `get_status`) submits API-based flows directly;
+   (`start_application` → `submit_step`) submits API-based flows directly (inspected via the
+   READ ops `get_status` / `get_handoff`);
    for a flow with **no API**, the adapter supplies the discovered flow + assembled
    application and the **connected agent** completes it with its own browser automation
    (computer-use / browser-use) under the same guardrails — or, if the agent can't drive a

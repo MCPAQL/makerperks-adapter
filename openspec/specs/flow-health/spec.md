@@ -31,7 +31,9 @@ last success, last failure, consecutive `failure_count`, last note) through a
 to zero; a `failure` SHALL increment it. When `failure_count` reaches the re-discovery threshold,
 the flow SHALL be flagged for re-discovery. Each report SHALL append an audit entry. The
 operation SHALL require the per-user store and SHALL NOT be present on the anonymous read-only
-endpoint.
+endpoint. `report_flow_outcome` SHALL carry the **UPDATE** semantic category: it upserts the
+evolving per-slug `flowHealth` aggregate (a default record is lazily initialized on first touch,
+not created by the caller).
 
 #### Scenario: A success resets a failing streak
 

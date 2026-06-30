@@ -26,7 +26,7 @@ export function registerFlowHealthOperations(
 ): void {
   router.register({
     name: "report_flow_outcome",
-    semanticCategory: "EXECUTE",
+    semanticCategory: "UPDATE",
     description:
       "Record the outcome of an attempt to apply via a perk's flow (success | failure). A " +
       "success clears this user's consecutive-failure streak; repeated failures flag the flow " +

@@ -415,8 +415,9 @@ test("http: mcp_aql_execute is exposed and dispatches when a store is wired", as
   const client = new Client({ name: "test", version: "0.0.0" });
   await client.connect(new StreamableHTTPClientTransport(new URL(handle.url)));
 
+  // set_autonomy is UPDATE, so wiring the session store now also exposes mcp_aql_update.
   const tools = (await client.listTools()).tools.map((t) => t.name).sort();
-  assert.deepEqual(tools, ["mcp_aql_execute", "mcp_aql_read"]);
+  assert.deepEqual(tools, ["mcp_aql_execute", "mcp_aql_read", "mcp_aql_update"]);
 
   const res = await client.callTool({
     name: "mcp_aql_execute",
