@@ -36,6 +36,11 @@ export interface Operation {
   params: Record<string, ParamSpec>;
   returns?: string;
   handler: Handler;
+  /**
+   * Reserved discovery/protocol op reachable from every CRUDE endpoint (e.g. `introspect`).
+   * When true, `dispatchFromEndpoint` skips the endpoint-binding check for this op.
+   */
+  anyEndpoint?: boolean;
 }
 
 function matchesType(value: unknown, type: ParamType): boolean {
@@ -76,18 +81,31 @@ export class Router {
   }
 
   /**
-   * Enforce the CRUDE endpoint binding (spec crude-pattern §5, operations §6.3), validate
-   * params (required, type, unknown), then dispatch to the handler.
-   *
-   * `invokingCategory` is the semantic category of the endpoint the request arrived on. When
-   * provided (the MCP boundary always provides it — see mcp.ts), an operation whose
-   * `semanticCategory` differs is REJECTED before any validation or side effect. When omitted
-   * (transport-agnostic in-process callers), the binding check is skipped. `introspect` is the
-   * reserved discovery op and is reachable from every endpoint.
+   * Trusted in-process dispatch: validate params and run the handler, with NO endpoint-binding
+   * check. For calls that did not arrive through a CRUDE endpoint (in-process orchestration,
+   * tests). A request that crosses a transport boundary MUST go through `dispatchFromEndpoint`
+   * instead, so the endpoint↔operation binding is enforced.
    */
-  async dispatch(
+  async dispatch(req: AqlRequest): Promise<Result<unknown>> {
+    const op = this.ops.get(req.operation);
+    if (!op) {
+      return err("NOT_FOUND_OPERATION", `unknown operation: ${req.operation}`, {
+        operation: req.operation,
+      });
+    }
+    return this.run(op, req.params ?? {});
+  }
+
+  /**
+   * Endpoint-boundary dispatch (spec crude-pattern §5, operations §6.3). `endpoint` is the
+   * semantic category of the CRUDE tool the request arrived on; it is REQUIRED so a transport
+   * cannot silently skip the check. An operation whose `semanticCategory` differs is REJECTED
+   * with VALIDATION_ENDPOINT_MISMATCH before any param validation or side effect. Ops flagged
+   * `anyEndpoint` (e.g. `introspect`) are reachable from every endpoint.
+   */
+  async dispatchFromEndpoint(
     req: AqlRequest,
-    invokingCategory?: SemanticCategory,
+    endpoint: SemanticCategory,
   ): Promise<Result<unknown>> {
     const op = this.ops.get(req.operation);
     if (!op) {
@@ -96,24 +114,26 @@ export class Router {
       });
     }
 
-    if (
-      invokingCategory !== undefined &&
-      op.name !== "introspect" &&
-      op.semanticCategory !== invokingCategory
-    ) {
+    if (!op.anyEndpoint && op.semanticCategory !== endpoint) {
       return err(
         "VALIDATION_ENDPOINT_MISMATCH",
-        `Operation '${op.name}' must be called via ${TOOL_FOR_CATEGORY[op.semanticCategory]}, not ${TOOL_FOR_CATEGORY[invokingCategory]}`,
+        `Operation '${op.name}' must be called via ${TOOL_FOR_CATEGORY[op.semanticCategory]}, not ${TOOL_FOR_CATEGORY[endpoint]}`,
         {
           operation: op.name,
           expected_endpoint: op.semanticCategory,
-          actual_endpoint: invokingCategory,
+          actual_endpoint: endpoint,
         },
       );
     }
 
-    const params = req.params ?? {};
+    return this.run(op, req.params ?? {});
+  }
 
+  /** Validate params (unknown, required, type, enum), then invoke the handler. */
+  private async run(
+    op: Operation,
+    params: Record<string, unknown>,
+  ): Promise<Result<unknown>> {
     for (const key of Object.keys(params)) {
       if (!(key in op.params)) {
         return err("VALIDATION_UNKNOWN_PARAM", `unknown parameter: ${key}`, {

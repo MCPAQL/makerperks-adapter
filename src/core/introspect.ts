@@ -27,6 +27,7 @@ export function registerIntrospect(router: Router): void {
   router.register({
     name: "introspect",
     semanticCategory: "READ",
+    anyEndpoint: true, // reserved discovery op — reachable from every CRUDE endpoint
     description: "Discover available operations, their parameters, and return shapes.",
     params: {
       name: {

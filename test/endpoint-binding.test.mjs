@@ -1,5 +1,7 @@
 // CRUDE endpoint enforcement (#93; spec crude-pattern §5, operations §6.3).
 // An operation invoked via the wrong endpoint MUST be rejected before any side effect.
+// Enforcement lives in `dispatchFromEndpoint` (the transport boundary); the plain `dispatch`
+// is the trusted in-process path and does no binding check.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { Router } from "../dist/core/router.js";
@@ -15,6 +17,7 @@ function makeRouter() {
   router.register({
     name: "introspect",
     semanticCategory: "READ",
+    anyEndpoint: true,
     params: {},
     handler: handler("introspect"),
   });
@@ -35,7 +38,7 @@ function makeRouter() {
 
 test("rejects an EXECUTE op invoked via the READ endpoint, without running the handler", async () => {
   const { router, calls } = makeRouter();
-  const r = await router.dispatch(
+  const r = await router.dispatchFromEndpoint(
     { operation: "set_thing", params: { mode: "full_auto" } },
     "READ",
   );
@@ -53,14 +56,17 @@ test("rejects an EXECUTE op invoked via the READ endpoint, without running the h
 test("the binding check precedes param validation (a wrong-endpoint call never validates)", async () => {
   const { router, calls } = makeRouter();
   // `mode` is required, but it is omitted: mismatch must win over VALIDATION_MISSING_PARAM.
-  const r = await router.dispatch({ operation: "set_thing", params: {} }, "READ");
+  const r = await router.dispatchFromEndpoint(
+    { operation: "set_thing", params: {} },
+    "READ",
+  );
   assert.equal(r.error.code, "VALIDATION_ENDPOINT_MISMATCH");
   assert.equal(calls.length, 0);
 });
 
 test("allows an op invoked via its correct endpoint", async () => {
   const { router, calls } = makeRouter();
-  const r = await router.dispatch(
+  const r = await router.dispatchFromEndpoint(
     { operation: "set_thing", params: { mode: "review_each" } },
     "EXECUTE",
   );
@@ -68,23 +74,27 @@ test("allows an op invoked via its correct endpoint", async () => {
   assert.deepEqual(calls, [{ name: "set_thing", params: { mode: "review_each" } }]);
 });
 
-test("introspect is reachable from every endpoint", async () => {
+test("an anyEndpoint op (introspect) is reachable from every endpoint", async () => {
   for (const cat of ["READ", "CREATE", "UPDATE", "DELETE", "EXECUTE"]) {
     const { router } = makeRouter();
-    const r = await router.dispatch({ operation: "introspect" }, cat);
+    const r = await router.dispatchFromEndpoint({ operation: "introspect" }, cat);
     assert.equal(r.success, true, `introspect via ${cat} should succeed`);
   }
 });
 
 test("an unknown operation is NOT_FOUND_OPERATION, not an endpoint mismatch", async () => {
   const { router } = makeRouter();
-  const r = await router.dispatch({ operation: "nope" }, "READ");
+  const r = await router.dispatchFromEndpoint({ operation: "nope" }, "READ");
   assert.equal(r.error.code, "NOT_FOUND_OPERATION");
 });
 
-test("back-compat: omitting the invoking category skips the binding check", async () => {
+test("the trusted in-process dispatch() does no binding check", async () => {
   const { router, calls } = makeRouter();
-  const r = await router.dispatch({ operation: "set_thing", params: { mode: "x" } });
+  // set_thing is EXECUTE; plain dispatch (no endpoint context) runs it regardless.
+  const r = await router.dispatch({
+    operation: "set_thing",
+    params: { mode: "x" },
+  });
   assert.equal(
     r.success,
     true,
