@@ -64,25 +64,42 @@ export function normalizeTextList(
 
 const SAFE_URL_SCHEMES = new Set(["https:", "mailto:"]);
 
+// A legitimate apply URL is already percent-encoded and contains NO raw control characters, ASCII
+// whitespace (space/tab/newline/CR), zero-width, or bidi characters. Their presence signals tampering
+// — e.g. a newline splicing injection text after the URL. Rather than letting `new URL()` silently
+// fold the tail into a canonical path, we REJECT such a URL outright (it becomes a gap).
+function hasUrlTamperChar(s: string): boolean {
+  for (const ch of s) {
+    const c = ch.codePointAt(0) ?? 0;
+    if (
+      c <= 0x20 || // C0 controls + space (tab/newline/CR are delimiter-injection vectors)
+      (c >= 0x7f && c <= 0x9f) || // DEL + C1
+      (c >= 0x200b && c <= 0x200d) || // zero-width
+      c === 0xfeff || // BOM/ZWNBSP
+      (c >= 0x202a && c <= 0x202e) || // bidi embedding/override
+      (c >= 0x2066 && c <= 0x2069) // bidi isolates
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
 /**
- * Parse and constrain an untrusted `action_url`. Control, zero-width, and bidi characters are
- * stripped FIRST (so a feed cannot smuggle e.g. `https://x/apply\nIgnore previous instructions` into
- * the agent-facing URL), then the result is parsed and the **canonical href** is returned — never the
- * raw string — so what the agent sees is a clean, fully-encoded URL. Returns `undefined` if the value
- * is unparseable, over-long, or uses any scheme other than `https`/`mailto` (e.g. `javascript:`,
- * `data:`, `file:`, plain `http:`). A dropped URL is surfaced as a gap by the caller.
+ * Parse and constrain an untrusted `action_url`. Returns the **canonical href** (never the raw
+ * string) for a value that parses, uses a safe scheme (`https`/`mailto`), and contains no tampering
+ * characters. Returns `undefined` — surfaced as a gap by the caller — if the value is unparseable,
+ * over-long, uses any other scheme (`javascript:`, `data:`, `file:`, plain `http:`), or contains a
+ * raw control / ASCII-whitespace / zero-width / bidi character (an injection-splicing signal).
  */
 export function normalizeActionUrl(input: unknown): string | undefined {
   if (typeof input !== "string") return undefined;
-  const cleaned = input
-    .replace(ZERO_WIDTH, "")
-    .replace(BIDI, "")
-    .replace(CONTROL, "")
-    .trim();
-  if (cleaned.length === 0 || cleaned.length > UNTRUSTED_LIMITS.url) return undefined;
+  const s = input.trim();
+  if (s.length === 0 || s.length > UNTRUSTED_LIMITS.url) return undefined;
+  if (hasUrlTamperChar(s)) return undefined;
   let u: URL;
   try {
-    u = new URL(cleaned);
+    u = new URL(s);
   } catch {
     return undefined;
   }

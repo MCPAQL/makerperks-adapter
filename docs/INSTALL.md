@@ -198,6 +198,11 @@ trusted, or pin its content, with the JSON-array form of `PERKS_URLS`:
 "PERKS_URLS": "[{\"id\":\"grants\",\"source\":\"https://b.example.com/grants.json\",\"trust\":\"trusted\",\"integrity\":\"<sha256-hex-of-the-raw-body>\"}]"
 ```
 
+> Note: feed ids must be distinct. When `id` is omitted it derives from the host, so **two feeds on
+> the same host need explicit distinct `id`s** in the JSON-array form — otherwise they collide, and
+> feed-trust resolution fail-safes the whole id to `untrusted` (silently disabling the credential
+> auto-expose path for the primary's programs too).
+
 When `integrity` is set it is verified on load; a mismatch drops that feed (fail-soft) and a
 verifying hash classifies the feed `trusted` — **unless** you also set `trust` explicitly, in which
 case your value wins (so `{ "trust": "untrusted", "integrity": "…" }` pins the content for
