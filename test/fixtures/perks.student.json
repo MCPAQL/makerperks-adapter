@@ -1,0 +1,26 @@
+{
+  "name": "MakerPerks (student fixture)",
+  "description": "A student-audience program whose derived baseline carries a credential input.",
+  "homepage": "https://makerperks.com",
+  "generated": "2026-06-25",
+  "count": 1,
+  "programs": [
+    {
+      "slug": "github/github-student-developer-pack",
+      "title": "GitHub Student Developer Pack",
+      "provider": "github",
+      "url": "https://education.github.com/pack",
+      "audience": ["student"],
+      "tags": ["dev tools"],
+      "value_type": "free_tier",
+      "max_value": 0,
+      "value_display": "Free for students",
+      "region": "global",
+      "status": "Active",
+      "aggregator": false,
+      "unlocks": [],
+      "sources": ["awesome-builder-programs"],
+      "verified": "2026-06-25"
+    }
+  ]
+}

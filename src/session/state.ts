@@ -35,6 +35,9 @@ export interface ConfirmationToken {
   stage: ExecutionStage;
   /** Hash binding the token to the inputs it was issued for. */
   paramsHash: string;
+  /** The vault credential id the approval was issued for (undefined when none) — bound so an
+   * approval for one stored secret cannot authorize a different one on replay (#95). */
+  credentialId?: string;
   issuedAt: number;
   expiresAt: number;
   used: boolean;

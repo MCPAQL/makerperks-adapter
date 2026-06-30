@@ -23,7 +23,9 @@ and even apply for you.
    handle it — or hand you a ready-to-submit form to finish yourself.
 
 You stay in control the whole way: you choose how much it does on its own, and it never
-claims something you don't qualify for.
+claims something you don't qualify for. For the strongest control, set your MCP client to ask
+before the mutating tools run (everything that acts on your behalf is on `mcp_aql_execute` and the
+other mutating verbs; reads are separate) — see [Keep a human in the loop](docs/INSTALL.md#recommended-keep-a-human-in-the-loop-gate-the-mutating-endpoints).
 
 ---
 

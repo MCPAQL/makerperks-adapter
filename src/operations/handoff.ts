@@ -141,12 +141,13 @@ export function buildHandoff(
 
 /**
  * The live application package the agent actually applies with (#91). It is `buildHandoff` plus
- * DANGER-TIERED credential delivery: for a flow at **danger ≤ 2**, a supplied vault credential is
- * decrypted and moved from `pending_inputs` into `assembled_inputs` so the agent can authenticate;
- * for **danger ≥ 3** (payment / real identity) the secret is NEVER exposed — it stays pending for
- * out-of-band supply. With no vault key (or no credential), it stays pending — fail safe. This is
- * the one place a credential plaintext may reach the agent, and only under the low-danger tier; the
- * preview path (`get_handoff` / `buildHandoff`) remains entirely secret-free.
+ * KIND- and DANGER-TIERED credential delivery (#95): a supplied vault credential is decrypted and
+ * moved from `pending_inputs` into `assembled_inputs` ONLY when it is a **`scoped_token`** AND the
+ * flow is at **danger ≤ 2**. A `password` or `identity_document` is NEVER auto-exposed regardless
+ * of danger (reusable account access / irreplaceable PII — supplied out-of-band), and **danger ≥ 3**
+ * never exposes any credential. With no vault key (or no credential), it stays pending — fail safe.
+ * This is the one place a credential plaintext may reach the agent; the preview path (`get_handoff`
+ * / `buildHandoff`) remains entirely secret-free.
  */
 export async function buildApplicationPackage(
   flow: ApplicationFlow,
@@ -156,7 +157,12 @@ export async function buildApplicationPackage(
 ): Promise<HandoffPackage> {
   const pkg = buildHandoff(flow, execution, profile);
   const { vault, credential } = opts ?? {};
-  if (vault && credential && flow.danger_level <= 2) {
+  if (
+    vault &&
+    credential &&
+    credential.kind === "scoped_token" &&
+    flow.danger_level <= 2
+  ) {
     const idx = pkg.pending_inputs.findIndex((p) => p.reason === "credential");
     if (idx >= 0) {
       const target = pkg.pending_inputs[idx];

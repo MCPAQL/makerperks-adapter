@@ -167,6 +167,51 @@ test("review_each keeps every proposal pending", async () => {
   assert.ok(!res.data.auto_accepted);
 });
 
+test("a credential-bearing flow never auto-accepts, even full_auto at danger 0 (#95)", async () => {
+  const { router } = await withQueue();
+  await d(router, "set_acceptance_mode", { mode: "full_auto" });
+  const candidate = {
+    ...ready(0),
+    required_inputs: [
+      { key: "api_key", type: "string", required: true, source: "credential" },
+    ],
+  };
+  const res = await d(router, "propose_flow", { slug: SLUG, candidate });
+  assert.equal(res.data.verdict.ready_for_proposal, true); // it IS ready…
+  assert.equal(res.data.status, "pending"); // …but a credential flow waits for a human
+  assert.ok(!res.data.auto_accepted);
+});
+
+test("a flow that INHERITS a baseline credential input never auto-accepts (#95, P2)", async () => {
+  // The student-audience baseline derives a `student_verification` credential input; a candidate
+  // that omits required_inputs still inherits it when served (mergeFlow), so it must not auto-accept.
+  const { router } = await buildApp({
+    source: "test/fixtures/perks.student.json",
+    flowRegistry: inMemoryFlowRegistry(),
+    operator: true,
+  });
+  await d(router, "set_acceptance_mode", { mode: "full_auto" });
+  const candidate = {
+    automatability: "api",
+    submission: {
+      method: "oauth_signup",
+      action_url: "https://education.github.com/pack",
+    },
+    redemption: { type: "auto" },
+    danger_level: 0,
+    source: "https://education.github.com/pack",
+    verified: "2026-06-28",
+    // NOTE: no required_inputs — the credential input is inherited from the baseline
+  };
+  const res = await d(router, "propose_flow", {
+    slug: "github/github-student-developer-pack",
+    candidate,
+  });
+  assert.equal(res.data.verdict.ready_for_proposal, true); // ready…
+  assert.equal(res.data.status, "pending"); // …but the inherited credential input blocks auto-accept
+  assert.ok(!res.data.auto_accepted);
+});
+
 test("auto_low_risk auto-accepts ready danger<=1 and escalates the rest", async () => {
   const { router } = await withQueue();
   await d(router, "set_acceptance_mode", { mode: "auto_low_risk" });

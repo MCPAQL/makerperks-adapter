@@ -12,6 +12,7 @@ import type { FlowSource } from "../data/flow-source.js";
 import { collectProposalFindings, diffFlow } from "../data/discovery.js";
 import { statusProposalCheck } from "../data/status.js";
 import type { CuratedFlow, CuratedFlows } from "../data/flows.js";
+import { deriveFlow, mergeFlow } from "../data/flows.js";
 import type { ProfileStore } from "../session/profile.js";
 import {
   ACCEPTANCE_MODES,
@@ -30,13 +31,40 @@ function dangerOf(candidate: CuratedFlow): number {
 }
 
 /**
+ * Whether a flow requires a stored vault credential to apply (any `source: "credential"` input).
+ * Evaluated on the EFFECTIVE served flow, not the candidate overlay alone: a candidate may omit
+ * `required_inputs` and still inherit a baseline credential input (e.g. a student-audience
+ * program derives `student_verification` with `source: "credential"`), which `mergeFlow` keeps
+ * when the overlay does not override it.
+ */
+function hasCredentialInput(flow: { required_inputs?: unknown }): boolean {
+  const inputs = flow.required_inputs;
+  return (
+    Array.isArray(inputs) &&
+    inputs.some(
+      (i) =>
+        i !== null &&
+        typeof i === "object" &&
+        (i as { source?: unknown }).source === "credential",
+    )
+  );
+}
+
+/**
  * Whether a proposal auto-accepts at submission under the dial. In every mode it must be
  * `ready` (so eligibility, which blocks readiness, is never auto-asserted) and `danger ≤ 2`
  * (danger ≥ 3 — payment / real identity — always waits for an explicit human `accept_flow`):
  * review_each never auto-accepts; auto_low_risk accepts danger ≤ 1; full_auto accepts danger ≤ 2.
+ * A flow that requires a vault credential (#95) NEVER auto-accepts — publishing it would put a
+ * stored secret in play for every user, so it always waits for an explicit human `accept_flow`.
  */
-function autoAccepts(mode: AcceptanceMode, ready: boolean, danger: number): boolean {
-  if (!ready || danger >= 3) return false;
+function autoAccepts(
+  mode: AcceptanceMode,
+  ready: boolean,
+  danger: number,
+  credentialInput: boolean,
+): boolean {
+  if (!ready || danger >= 3 || credentialInput) return false;
   if (mode === "auto_low_risk") return danger <= 1;
   if (mode === "full_auto") return danger <= 2;
   return false; // review_each
@@ -147,6 +175,9 @@ export function registerFlowAcceptanceOperations(
           await registry.mode(),
           verdict.ready_for_proposal,
           proposal.danger_level,
+          // Check the EFFECTIVE served flow (overlay merged over the derived baseline), so a
+          // candidate cannot dodge the gate by omitting an inherited credential input (#95).
+          hasCredentialInput(mergeFlow(deriveFlow(program), candidate)),
         )
       ) {
         const decided = await registry.decide(proposal.id, "accepted");
