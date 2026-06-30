@@ -134,6 +134,13 @@ const MULTI_PART_SUFFIXES = new Set([
   "notion.site",
 ]);
 
+/** True for an IPv4 dotted-quad or an IPv6 literal (WHATWG `hostname` brackets IPv6 / it contains a colon). */
+function isIpLiteral(host: string): boolean {
+  return (
+    /^\d{1,3}(\.\d{1,3}){3}$/.test(host) || host.includes(":") || host.startsWith("[")
+  );
+}
+
 /** Best-effort registrable domain (eTLD+1) for `host`, without a public-suffix-list dependency. */
 export function registrableDomain(host: string): string {
   const h = host.toLowerCase().replace(/\.$/, "");
@@ -147,10 +154,13 @@ export function registrableDomain(host: string): string {
 /**
  * True when two hosts share a registrable domain (covers exact host, a subdomain relationship, and
  * sibling subdomains). A bare single-label host (e.g. `localhost`) never matches — it has no
- * registrable domain and must not be treated as a trusted provider domain.
+ * registrable domain and must not be treated as a trusted provider domain. An **IP literal** (v4 or
+ * v6) must match **exactly** — never via eTLD+1, or `203.0.113.10` and `198.51.113.10` would both
+ * reduce to `113.10` and wrongly share a "domain".
  */
 export function sameRegistrableDomain(a: string, b: string): boolean {
   if (!a || !b) return false;
+  if (isIpLiteral(a) || isIpLiteral(b)) return a === b;
   const ra = registrableDomain(a);
   const rb = registrableDomain(b);
   return ra !== "" && ra.includes(".") && ra === rb;

@@ -114,6 +114,31 @@ test("sameRegistrableDomain matches exact, subdomain, and siblings; rejects diff
   assert.ok(!sameRegistrableDomain("localhost", "localhost")); // no registrable domain
 });
 
+test("sameRegistrableDomain requires IP literals to match exactly, not via eTLD+1 (#97)", () => {
+  assert.ok(sameRegistrableDomain("203.0.113.10", "203.0.113.10")); // exact IPv4 → allowed
+  assert.ok(!sameRegistrableDomain("203.0.113.10", "198.51.113.10")); // different IPs, same last octets
+  assert.ok(!sameRegistrableDomain("203.0.113.10", "203.0.113.11"));
+  assert.ok(sameRegistrableDomain("[2001:db8::1]", "[2001:db8::1]")); // exact IPv6 → allowed
+  assert.ok(!sameRegistrableDomain("[2001:db8::1]", "[2001:db8::2]"));
+});
+
+test("isExposureUrlAllowed denies a different IP-literal apply URL (#97)", () => {
+  assert.ok(
+    !isExposureUrlAllowed({
+      actionUrl: "https://198.51.113.10/apply",
+      anchorUrl: "https://203.0.113.10",
+    }),
+    "a different IP must not be treated as same-domain",
+  );
+  assert.ok(
+    isExposureUrlAllowed({
+      actionUrl: "https://203.0.113.10/apply",
+      anchorUrl: "https://203.0.113.10",
+    }),
+    "the same IP host is allowed",
+  );
+});
+
 // --- exposure gate ---
 
 test("isExposureUrlAllowed: on-domain allowed, off-domain denied", () => {
