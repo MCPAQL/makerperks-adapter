@@ -149,6 +149,22 @@ test("update_project merges fields into an existing project; omitted fields are 
   assert.equal(updated.data.profile.projects.length, 1); // updated in place, not added
 });
 
+test("update_project with an empty patch is a no-op success", async () => {
+  const { router } = await withProfile();
+  await router.dispatch({ operation: "create_profile", params: {} });
+  const added = await router.dispatch({
+    operation: "add_project",
+    params: { project: { name: "DollhouseMCP", role: "Creator" } },
+  });
+  const projectId = added.data.project_id;
+  const r = await router.dispatch({
+    operation: "update_project",
+    params: { project_id: projectId, project: {} },
+  });
+  assert.equal(r.success, true);
+  assert.deepEqual(r.data.profile.projects[0], added.data.profile.projects[0]);
+});
+
 test("update_project on an unknown id is NOT_FOUND", async () => {
   const { router } = await withProfile();
   await router.dispatch({ operation: "create_profile", params: {} });

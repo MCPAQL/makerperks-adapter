@@ -1,8 +1,5 @@
-# application-pipeline Specification
+## MODIFIED Requirements
 
-## Purpose
-TBD - created by archiving change add-application-pipeline. Update Purpose after archive.
-## Requirements
 ### Requirement: Simulated EXECUTE application lifecycle
 
 The adapter SHALL expose an `EXECUTE` operation family — `start_application` and `submit_step` —
@@ -51,41 +48,6 @@ handoff package for an external browser-automation agent. The adapter SHALL NOT 
 - **THEN** the result does not claim a simulated submission, flags that a handoff is available,
   and directs the agent to `get_handoff` for the prepared package
 
-### Requirement: Batch-with-halting via session-scoped confirmation tokens
-
-A step whose danger level meets or exceeds the gate threshold SHALL halt the batch and
-return `CONFIRMATION_REQUIRED` together with a confirmation token that is **single-use**,
-**time-limited**, and **param-bound** (to the execution, stage, and inputs). The agent SHALL
-resume by replaying the step with the token; the server SHALL verify and consume it. A
-missing, expired, already-used, or parameter-mismatched token SHALL be rejected.
-
-#### Scenario: Halt then resume
-
-- **WHEN** a gated step is reached
-- **THEN** the call returns `CONFIRMATION_REQUIRED` with a token, and replaying the step with
-  that token proceeds past the gate exactly once
-
-#### Scenario: A token cannot be replayed
-
-- **WHEN** a confirmation token that was already consumed is presented again
-- **THEN** it is rejected
-
-#### Scenario: A token is bound to its parameters
-
-- **WHEN** a token is presented for a step whose inputs differ from those it was issued for
-- **THEN** it is rejected
-
-### Requirement: Per-session execution isolation
-
-Executions and confirmation tokens SHALL be scoped to the session and SHALL NOT be visible
-across sessions or users. On the stateful endpoint this state lives in the per-session
-Durable Object; over stdio it is in-process.
-
-#### Scenario: Executions do not leak across sessions
-
-- **WHEN** two sessions each start an application
-- **THEN** neither can see or resume the other's execution
-
 ### Requirement: Opt-in Execution Safety Loop
 
 The adapter SHALL provide an opt-in `record_execution_step` operation that evaluates an
@@ -103,4 +65,3 @@ SHALL be a **READ** operation (despite its name).
 
 - **WHEN** `record_execution_step` reports an action at or above the gate threshold
 - **THEN** it returns a `pause` or `stop` directive with a reason
-
