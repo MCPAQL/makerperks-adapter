@@ -173,6 +173,48 @@ Set `vars` in the wrangler config (or the dashboard):
 
 Optional: `FLOWS_URL` (a hosted `flows.json` overlay; otherwise the bundled default).
 
+### Feed trust + apply-URL safety (credential exposure)
+Directory feeds and user-proposed flows are **untrusted input**: their free text is normalized
+(control/zero-width/bidi characters stripped) and labeled with a provenance envelope before any
+agent sees it, and an `action_url` is constrained to `https`/`mailto`.
+
+A stored `scoped_token` is auto-filled into the application package **only** when the apply URL is on
+the program's **own registrable domain**. If a provider's real apply form lives on a third-party
+host (Typeform, Google Forms, …), allowlist those hosts so the token can still be delivered there
+(stateful worker only):
+
+```jsonc
+"vars": {
+  // comma-separated; `*.host` matches any subdomain
+  "ACTION_URL_FORM_HOSTS": "*.typeform.com, docs.google.com"
+}
+```
+
+Feed trust: the **primary** feed is `trusted`; any **additional** federated feed is `untrusted`
+unless you mark it so — and an `untrusted` feed's programs never auto-fill a credential. Mark a feed
+trusted, or pin its content, with the JSON-array form of `PERKS_URLS`:
+
+```jsonc
+"PERKS_URLS": "[{\"id\":\"grants\",\"source\":\"https://b.example.com/grants.json\",\"trust\":\"trusted\",\"integrity\":\"<sha256-hex-of-the-raw-body>\"}]"
+```
+
+> Note: feed ids must be distinct. When `id` is omitted it derives from the host, so **two feeds on
+> the same host need explicit distinct `id`s** in the JSON-array form — otherwise they collide, and
+> feed-trust resolution fail-safes the whole id to `untrusted` (silently disabling the credential
+> auto-expose path for the primary's programs too).
+
+When `integrity` is set it is verified on load; a mismatch drops that feed (fail-soft) and a
+verifying hash classifies the feed `trusted` — **unless** you also set `trust` explicitly, in which
+case your value wins (so `{ "trust": "untrusted", "integrity": "…" }` pins the content for
+reproducibility while still withholding the credential-exposure path). (`signature`/`publicKey` are
+reserved for signed feeds.)
+
+> Note: the apply-URL domain gate uses a curated registrable-domain map that includes common
+> multi-tenant hosting platforms (`github.io`, `vercel.app`, `netlify.app`, `pages.dev`,
+> `workers.dev`, …), so unrelated tenants on the same platform don't share a domain. It is **not** a
+> full public-suffix list — if a program's home page lives on some other shared host, add the exact
+> apply host to `ACTION_URL_FORM_HOSTS` rather than relying on the domain anchor.
+
 ### Deploy
 ```sh
 npm run deploy       # read-only worker  (wrangler.jsonc)

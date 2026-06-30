@@ -1,0 +1,10 @@
+{
+  "github/github-student-developer-pack": {
+    "submission": {
+      "method": "web_form",
+      "action_url": "https://apply.typeform.com/to/student-verify"
+    },
+    "source": "test-fixture",
+    "verified": "2026-06-25"
+  }
+}

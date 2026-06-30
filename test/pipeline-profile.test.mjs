@@ -124,3 +124,66 @@ test("referencing an unknown credential id at submission is NOT_FOUND", async ()
   });
   assert.equal(res.error.code, "NOT_FOUND_RESOURCE");
 });
+
+// #97: end-to-end, an operator ACTION_URL_FORM_HOSTS allowlist must thread all the way through
+// buildApp → buildRouter → the submission gate, so a legitimate off-domain apply form carries the
+// scoped_token. The student fixture's flow requires a credential; the overlay puts its apply URL on
+// an off-domain Typeform host.
+const STUDENT_FIXTURE = "test/fixtures/perks.student.json";
+const STUDENT_SLUG = "github/github-student-developer-pack";
+const STUDENT_FLOWS = "test/fixtures/flows.formhost.json"; // action_url → apply.typeform.com (off-domain)
+
+async function studentApp(formHosts) {
+  return buildApp({
+    source: STUDENT_FIXTURE,
+    flowsSource: STUDENT_FLOWS,
+    sessionStore: inMemorySessionStore(),
+    profileStore: inMemoryProfileStore(),
+    vaultCrypto: vaultCrypto(await importVaultKey(generateVaultKeyBytes())),
+    ...(formHosts ? { actionUrlFormHosts: formHosts } : {}),
+  });
+}
+
+async function driveStudentSubmission(router) {
+  await d(router, "create_profile", {
+    identity: { name: "Mick", email: "mick@x.test" },
+  });
+  const added = await d(router, "add_credential", {
+    kind: "scoped_token",
+    label: "Student verification",
+    secret: "STUDENT_TOKEN_123",
+  });
+  await d(router, "set_autonomy", { mode: "full_auto" }); // credential floors gate to 2; full_auto proceeds
+  const started = await d(router, "start_application", { slug: STUDENT_SLUG });
+  const id = started.data.execution_id;
+  await d(router, "submit_step", { execution_id: id }); // eligibility
+  await d(router, "submit_step", { execution_id: id }); // assemble
+  return d(router, "submit_step", {
+    execution_id: id,
+    credential_id: added.data.credential.id,
+  }); // submission
+}
+
+test("ACTION_URL_FORM_HOSTS threads through buildApp: an allowlisted off-domain form carries the token (#97 P2)", async () => {
+  const { router } = await studentApp(["*.typeform.com"]);
+  const res = await driveStudentSubmission(router);
+  const exposed = res.data.application_package.assembled_inputs.some(
+    (i) => i.key === "student_verification" && i.source === "credential",
+  );
+  assert.ok(exposed, "the allowlisted Typeform host should carry the scoped_token");
+});
+
+test("without the allowlist, the same off-domain form withholds the token (#97 control)", async () => {
+  const { router } = await studentApp(); // no actionUrlFormHosts
+  const res = await driveStudentSubmission(router);
+  const exposed = res.data.application_package.assembled_inputs.some(
+    (i) => i.key === "student_verification" && i.source === "credential",
+  );
+  assert.equal(exposed, false, "an off-domain form is withheld without an allowlist");
+  assert.ok(
+    res.data.application_package.pending_inputs.some(
+      (i) => i.key === "student_verification",
+    ),
+    "the credential stays pending",
+  );
+});

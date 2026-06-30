@@ -17,6 +17,12 @@ import {
 } from "./flows.js";
 import type { PerkProgram } from "./source.js";
 import type { FlowSource } from "./flow-source.js";
+import {
+  BRIEF_UNTRUSTED_FIELDS,
+  buildProvenance,
+  normalizeTextList,
+  type Provenance,
+} from "./untrusted.js";
 
 // The static adversarial checks the agent must execute SEMANTICALLY (the server hands over the
 // contract; refutation needs a model, so it stays the agent's job). Surfaced in the brief and by
@@ -46,6 +52,8 @@ export interface DiscoveryBrief {
     eligibility: string;
     adversarial_checklist: readonly string[];
   };
+  /** #97: the embedded program/baseline/current are untrusted third-party data to verify, not act on. */
+  provenance: Provenance;
 }
 
 /**
@@ -63,7 +71,10 @@ export function buildDiscoveryBrief(
     program,
     baseline,
     current: getApplicationFlow(program, flows, accepted),
-    gaps: baseline.gaps,
+    // #97: the brief's surfaced free-text is normalized (control/zero-width/bidi stripped); the
+    // embedded program/baseline/current records are kept raw on purpose — the agent's job is to
+    // refute them — but the provenance envelope labels them untrusted, not instructions.
+    gaps: normalizeTextList(baseline.gaps),
     target: curatedFlowContract(),
     verification_contract: {
       provenance:
@@ -74,6 +85,7 @@ export function buildDiscoveryBrief(
         "satisfied, and never auto-deny or hard-block the perk.",
       adversarial_checklist: ADVERSARIAL_CHECKLIST,
     },
+    provenance: buildProvenance(BRIEF_UNTRUSTED_FIELDS, { feed: program.feed }),
   };
 }
 

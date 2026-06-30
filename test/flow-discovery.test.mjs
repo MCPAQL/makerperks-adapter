@@ -44,6 +44,18 @@ test("a brief seeds discovery with baseline + gaps + the target contract", async
   );
 });
 
+test("the brief carries a provenance envelope labeling the directory data untrusted (#97)", async () => {
+  const { router } = await buildApp({ source: FIXTURE });
+  const res = await d(router, "get_discovery_brief", { slug: "neon/neon-free-tier" });
+  assert.equal(res.success, true);
+  const p = res.data.provenance;
+  assert.equal(p.trust, "untrusted-third-party");
+  assert.ok(
+    p.untrusted_fields.includes("title") && p.untrusted_fields.includes("gaps"),
+  );
+  assert.match(p.notice, /not instructions/);
+});
+
 test("the brief's target contract matches what the validator enforces", () => {
   const contract = curatedFlowContract();
   // A value the contract advertises is accepted by the validator…

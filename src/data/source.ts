@@ -5,6 +5,8 @@
 // schemas via `new Function`, which Cloudflare Workers disallow. We validate the fields we
 // depend on and stay lenient to additive upstream fields.
 
+import { sha256Hex } from "./untrusted.js";
+
 export interface PerkProgram {
   slug: string;
   title: string;
@@ -44,6 +46,32 @@ export interface FeedConfig {
   source: string;
   /** When set, this feed's slugs become `prefix:slug` (isolated — cannot collide with other feeds). */
   prefix?: string;
+  /**
+   * #97 trust classification. The primary feed (index 0) defaults to `trusted`; any additional
+   * federated feed defaults to `untrusted` unless set here. An `untrusted` feed's programs never
+   * take the credential auto-expose path.
+   */
+  trust?: "trusted" | "untrusted";
+  /** #97: sha256 hex of the raw body. When set, verified on load; a mismatch drops the feed fail-soft. */
+  integrity?: string;
+  /** #97 (reserved): detached signature, base64. Typed for signed feeds; not yet verified. */
+  signature?: string;
+  /** #97 (reserved): public key, base64, paired with `signature`. Not yet verified. */
+  publicKey?: string;
+}
+
+/** A feed normalized for loading: ids/prefix/trust resolved; optional integrity carried through. */
+interface NormalizedFeed {
+  id: string;
+  source: string;
+  prefix: string;
+  trust: "trusted" | "untrusted";
+  /** Whether `trust` was set explicitly in config (vs. the positional default) — an explicit value
+   *  is never auto-upgraded by a verifying `integrity`. */
+  trustExplicit: boolean;
+  integrity?: string;
+  signature?: string;
+  publicKey?: string;
 }
 
 /** Per-feed load + federation health, surfaced via `list_sources` (#88). */
@@ -55,6 +83,8 @@ export interface FeedStatus {
   count: number;
   error?: string;
   collisions_dropped: number;
+  /** #97: the feed's effective trust after load (a verified integrity upgrades to `trusted`). */
+  trust: "trusted" | "untrusted";
 }
 
 export interface DataSourceOptions {
@@ -103,15 +133,23 @@ export function parseSourcesEnv(raw: string): (string | FeedConfig)[] {
     .filter(Boolean);
 }
 
-/** Normalize the configured feeds (sources, else single `source`, else the default) to FeedConfig[]. */
-function normalizeFeeds(opts: DataSourceOptions): Required<FeedConfig>[] {
+/** Normalize the configured feeds (sources, else single `source`, else the default) to NormalizedFeed[]. */
+function normalizeFeeds(opts: DataSourceOptions): NormalizedFeed[] {
   const raw = opts.sources?.length ? opts.sources : [opts.source ?? DEFAULT_SOURCE];
-  return raw.map((f) => {
+  return raw.map((f, idx) => {
     const cfg: FeedConfig = typeof f === "string" ? { source: f } : f;
+    // #97: the primary feed (operator's deliberate choice, incl. the default) is trusted; any
+    // additional federated feed is untrusted unless the operator marks it otherwise.
+    const trust = cfg.trust ?? (idx === 0 ? "trusted" : "untrusted");
     return {
       source: cfg.source,
       id: cfg.id ?? deriveFeedId(cfg.source),
       prefix: cfg.prefix ?? "",
+      trust,
+      trustExplicit: cfg.trust !== undefined,
+      ...(cfg.integrity !== undefined ? { integrity: cfg.integrity } : {}),
+      ...(cfg.signature !== undefined ? { signature: cfg.signature } : {}),
+      ...(cfg.publicKey !== undefined ? { publicKey: cfg.publicKey } : {}),
     };
   });
 }
@@ -193,7 +231,7 @@ export function collectPayloadErrors(data: unknown): string[] {
 }
 
 export class DataSource {
-  private readonly feeds: Required<FeedConfig>[];
+  private readonly feeds: NormalizedFeed[];
   private readonly ttlMs: number;
   private readonly fetchImpl: typeof fetch;
   // Federated, deduped programs + per-feed health + the primary feed's meta. Null until loaded.
@@ -231,10 +269,11 @@ export class DataSource {
         status: "ok",
         count: 0,
         collisions_dropped: 0,
+        trust: feed.trust,
       };
       let payload: PerksPayload;
       try {
-        payload = await this.loadFeed(feed.source);
+        payload = await this.loadFeed(feed);
       } catch (error) {
         if (lone) throw error; // single-source default stays loud
         status.status = "failed";
@@ -242,6 +281,10 @@ export class DataSource {
         statuses.push(status);
         continue;
       }
+      // #97: a feed whose declared integrity verified (loadFeed didn't throw) is trusted — but an
+      // EXPLICIT `trust` in config always wins (so `{ trust: "untrusted", integrity }` stays untrusted:
+      // pin for reproducibility without granting the credential-exposure path).
+      if (feed.integrity && !feed.trustExplicit) status.trust = "trusted";
       const { programs: _p, ...meta } = payload;
       if (!primaryMeta) primaryMeta = meta; // the highest-priority OK feed's meta
       for (const program of payload.programs) {
@@ -294,6 +337,21 @@ export class DataSource {
     return this.feedStatuses;
   }
 
+  /**
+   * #97: the effective trust of the feed a program was ingested from (`PerkProgram.feed`). An
+   * unknown / missing feed id is treated as `untrusted` (fail-safe — it never auto-exposes a
+   * credential). Used by the submission path to gate the credential auto-expose.
+   */
+  feedTrust(feedId?: string): "trusted" | "untrusted" {
+    if (!feedId) return "untrusted";
+    // Resolve across ALL statuses sharing this id (ids can collide when two feeds derive the same id
+    // from the same host). Fail-safe: `trusted` only if EVERY feed with this id is trusted — an
+    // untrusted feed sharing an id with a trusted one never grants the credential auto-expose path.
+    const matches = this.feedStatuses.filter((s) => s.id === feedId);
+    if (matches.length === 0) return "untrusted";
+    return matches.every((s) => s.trust === "trusted") ? "trusted" : "untrusted";
+  }
+
   /** Federated directory metadata (the primary feed's meta + the federated count). Feed ids are in
    * `sources()`. Throws if not loaded. */
   meta(): Omit<PerksPayload, "programs"> {
@@ -303,9 +361,20 @@ export class DataSource {
     return { ...this.primaryMeta, count: this.federated.length };
   }
 
-  /** Load + validate a single feed's payload (the per-feed unit of the fail-soft loop). */
-  private async loadFeed(source: string): Promise<PerksPayload> {
+  /** Load + (optionally) integrity-verify + validate a single feed's payload (the fail-soft unit). */
+  private async loadFeed(feed: NormalizedFeed): Promise<PerksPayload> {
+    const source = feed.source;
     const raw = await this.read(source);
+    // #97: when a feed pins an integrity hash, verify the raw body before trusting its contents. A
+    // mismatch throws — the fail-soft loop then drops the feed (or, for a lone feed, stays loud).
+    if (feed.integrity) {
+      const actual = await sha256Hex(raw);
+      if (actual.toLowerCase() !== feed.integrity.trim().toLowerCase()) {
+        throw new Error(
+          `feed integrity mismatch (source: ${source}): expected ${feed.integrity}, got ${actual}`,
+        );
+      }
+    }
     let data: unknown;
     try {
       data = JSON.parse(raw);
