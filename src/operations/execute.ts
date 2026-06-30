@@ -402,7 +402,7 @@ export function registerExecuteOperations(
 
   router.register({
     name: "get_status",
-    semanticCategory: "EXECUTE",
+    semanticCategory: "READ",
     description:
       "Get the current state of an application execution in this session, plus its flow " +
       "context (automatability, confidence, danger level, and the gaps an agent must resolve).",
@@ -451,7 +451,7 @@ export function registerExecuteOperations(
   // eligibility without deciding it.
   router.register({
     name: "get_handoff",
-    semanticCategory: "EXECUTE",
+    semanticCategory: "READ",
     description:
       "Preview the application package for an execution (any flow — API or web): the apply URL, " +
       "instructions, assembled vs pending inputs, danger level, gaps, and an eligibility notice. " +
@@ -494,7 +494,7 @@ export function registerExecuteOperations(
   // fixed; the configurable autonomy switch is #18.
   router.register({
     name: "record_execution_step",
-    semanticCategory: "EXECUTE",
+    semanticCategory: "READ",
     description:
       "Report an intended next action and receive an AutonomyDirective (go / pause / stop) " +
       "by danger level. Opt-in and stateless — the agent-agnostic safety substrate.",
@@ -548,7 +548,7 @@ export function registerExecuteOperations(
   // The autonomy switch (#18): the maker's dial over the gate. Ask up front, report intent.
   router.register({
     name: "set_autonomy",
-    semanticCategory: "EXECUTE",
+    semanticCategory: "UPDATE",
     description:
       "Set this session's autonomy mode — ASK the maker up front and report intent. " +
       "review_each = pause every submission; auto_low_risk = auto danger 0–1, pause ≥ 2; " +
@@ -572,7 +572,7 @@ export function registerExecuteOperations(
 
   router.register({
     name: "get_autonomy",
-    semanticCategory: "EXECUTE",
+    semanticCategory: "READ",
     description: "Get this session's current autonomy mode.",
     params: {},
     returns: "An object with the current `autonomy` mode.",

@@ -103,6 +103,40 @@ function cleanProject(raw: unknown): { project?: Omit<Project, "id">; error?: st
   return { project };
 }
 
+/** Whitelist + type-check a partial project patch (update_project); every field is optional. */
+function cleanProjectPatch(raw: unknown): {
+  patch?: Partial<Omit<Project, "id">>;
+  error?: string;
+} {
+  if (!isObject(raw)) return { error: "project must be an object" };
+  const patch: Partial<Omit<Project, "id">> = {};
+  if (raw.name !== undefined) {
+    if (typeof raw.name !== "string" || raw.name.trim() === "")
+      return { error: "project.name must be a non-empty string" };
+    patch.name = raw.name;
+  }
+  if (raw.description !== undefined) {
+    if (typeof raw.description !== "string")
+      return { error: "project.description must be a string" };
+    patch.description = raw.description;
+  }
+  if (raw.url !== undefined) {
+    if (typeof raw.url !== "string") return { error: "project.url must be a string" };
+    patch.url = raw.url;
+  }
+  if (raw.role !== undefined) {
+    if (typeof raw.role !== "string") return { error: "project.role must be a string" };
+    patch.role = raw.role;
+  }
+  if (raw.tags !== undefined) {
+    if (!Array.isArray(raw.tags) || !raw.tags.every((t) => typeof t === "string")) {
+      return { error: "project.tags must be an array of strings" };
+    }
+    patch.tags = raw.tags;
+  }
+  return { patch };
+}
+
 export function registerProfileOperations(router: Router, store: ProfileStore): void {
   // Fetch the existing profile or return a NOT_FOUND error (for ops that require one).
   const requireProfile = async (): Promise<
@@ -186,7 +220,7 @@ export function registerProfileOperations(router: Router, store: ProfileStore): 
     semanticCategory: "UPDATE",
     description:
       "Update the maker profile's identity fields (merged into the existing identity; " +
-      "location merges field-wise). Use add_project / remove_project for projects.",
+      "location merges field-wise). Use add_project / update_project / remove_project for projects.",
     params: {
       identity: {
         type: "object",
@@ -214,7 +248,7 @@ export function registerProfileOperations(router: Router, store: ProfileStore): 
 
   router.register({
     name: "add_project",
-    semanticCategory: "UPDATE",
+    semanticCategory: "CREATE",
     description:
       "Add a project to the maker profile (e.g. DollhouseMCP, MCP-AQL) — what applications " +
       "reference. Returns the assigned project_id.",
@@ -248,8 +282,57 @@ export function registerProfileOperations(router: Router, store: ProfileStore): 
   });
 
   router.register({
-    name: "remove_project",
+    name: "update_project",
     semanticCategory: "UPDATE",
+    description:
+      "Update an existing project on the maker profile by its id. Provided fields are merged " +
+      "into the project; omitted fields are kept. Use add_project to add, remove_project to remove.",
+    params: {
+      project_id: {
+        type: "string",
+        required: true,
+        description: "The id returned by add_project.",
+      },
+      project: {
+        type: "object",
+        required: true,
+        description:
+          "Fields to merge: { name?, description?, url?, role?, tags?: string[] }. " +
+          "Provided fields replace; omitted fields are kept.",
+      },
+    },
+    returns: "An object with the updated `profile` and the `project_id`.",
+    handler: async (params) => {
+      const found = await requireProfile();
+      if ("error" in found) return found.error;
+      const projectId = params.project_id as string;
+      const existing = found.profile.projects.find((p) => p.id === projectId);
+      if (!existing) {
+        return err("NOT_FOUND_RESOURCE", `no project with id: ${projectId}`, {
+          project_id: projectId,
+        });
+      }
+      const { patch, error } = cleanProjectPatch(params.project);
+      if (error || !patch)
+        return err("VALIDATION_INVALID_TYPE", error ?? "invalid project", {
+          param: "project",
+        });
+      const updated: Project = { ...existing, ...patch };
+      const profile: MakerProfile = {
+        ...found.profile,
+        projects: found.profile.projects.map((p) => (p.id === projectId ? updated : p)),
+        updatedAt: Date.now(),
+      };
+      await store.set(
+        appendAudit({ ...found.record, profile }, "update_project", updated.name),
+      );
+      return ok({ profile, project_id: projectId });
+    },
+  });
+
+  router.register({
+    name: "remove_project",
+    semanticCategory: "DELETE",
     description: "Remove a project from the maker profile by its id.",
     params: {
       project_id: {
