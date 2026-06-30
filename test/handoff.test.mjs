@@ -191,11 +191,12 @@ const makeVaultAndEntry = async (plaintext) => {
   return { vault, credential };
 };
 
-test("buildApplicationPackage: danger <=2 includes the decrypted credential for the agent", async () => {
+test("buildApplicationPackage: danger <=2 on the provider's own domain includes the decrypted credential", async () => {
   const { vault, credential } = await makeVaultAndEntry("secret-billing-123");
   const pkg = await buildApplicationPackage(webFlow, execution(), profile({}), {
     vault,
     credential,
+    anchorUrl: "https://apply.example", // same registrable domain as action_url → exposure allowed
   });
   const cred = pkg.assembled_inputs.find((i) => i.key === "billing_account_id");
   assert.ok(cred, "credential moved to assembled");
@@ -206,6 +207,92 @@ test("buildApplicationPackage: danger <=2 includes the decrypted credential for 
     false,
     "no longer pending",
   );
+});
+
+test("buildApplicationPackage: an injected off-domain apply URL withholds the credential (#97)", async () => {
+  const { vault, credential } = await makeVaultAndEntry("secret-billing-123");
+  // action_url is apply.example but the program identity (anchor) is evil.com — a redirect.
+  const pkg = await buildApplicationPackage(webFlow, execution(), profile({}), {
+    vault,
+    credential,
+    anchorUrl: "https://evil.example.com",
+  });
+  assert.equal(
+    pkg.assembled_inputs.some((i) => i.key === "billing_account_id"),
+    false,
+    "off-domain URL must not carry the credential",
+  );
+  const pending = pkg.pending_inputs.find((i) => i.key === "billing_account_id");
+  assert.equal(pending.reason, "credential");
+  assert.match(pending.note, /not on the provider's domain/);
+});
+
+test("buildApplicationPackage: a same-domain subdomain apply URL still exposes the credential (#97)", async () => {
+  const { vault, credential } = await makeVaultAndEntry("secret-billing-123");
+  const subFlow = {
+    ...webFlow,
+    submission: { ...webFlow.submission, action_url: "https://forms.apply.example/x" },
+  };
+  const pkg = await buildApplicationPackage(subFlow, execution(), profile({}), {
+    vault,
+    credential,
+    anchorUrl: "https://apply.example",
+  });
+  assert.ok(
+    pkg.assembled_inputs.find((i) => i.key === "billing_account_id"),
+    "a provider subdomain shares the registrable domain → exposure allowed",
+  );
+});
+
+test("buildApplicationPackage: an operator form-host allowlist permits an off-domain apply URL (#97)", async () => {
+  const { vault, credential } = await makeVaultAndEntry("secret-billing-123");
+  const formFlow = {
+    ...webFlow,
+    submission: {
+      ...webFlow.submission,
+      action_url: "https://acme.typeform.com/to/abc",
+    },
+  };
+  const pkg = await buildApplicationPackage(formFlow, execution(), profile({}), {
+    vault,
+    credential,
+    anchorUrl: "https://apply.example",
+    formHosts: ["*.typeform.com"],
+  });
+  assert.ok(
+    pkg.assembled_inputs.find((i) => i.key === "billing_account_id"),
+    "an allowlisted form host carries the credential",
+  );
+});
+
+test("buildApplicationPackage: an untrusted source feed never auto-exposes the credential (#97)", async () => {
+  const { vault, credential } = await makeVaultAndEntry("secret-billing-123");
+  const pkg = await buildApplicationPackage(webFlow, execution(), profile({}), {
+    vault,
+    credential,
+    anchorUrl: "https://apply.example", // on-domain, but…
+    feedTrust: "untrusted", // …the feed is untrusted → withheld regardless
+  });
+  assert.equal(
+    pkg.assembled_inputs.some((i) => i.key === "billing_account_id"),
+    false,
+    "untrusted feed must not carry the credential",
+  );
+  assert.match(
+    pkg.pending_inputs.find((i) => i.key === "billing_account_id").note,
+    /feed is untrusted/,
+  );
+});
+
+test("buildApplicationPackage: the package carries a provenance envelope (#97)", async () => {
+  const pkg = await buildApplicationPackage(webFlow, execution(), profile({}), {
+    feed: "www.makerperks.com",
+    feedTrust: "trusted",
+  });
+  assert.equal(pkg.provenance.trust, "untrusted-third-party");
+  assert.equal(pkg.provenance.feed, "www.makerperks.com");
+  assert.ok(pkg.provenance.untrusted_fields.includes("action_url"));
+  assert.match(pkg.provenance.notice, /not instructions/);
 });
 
 test("buildApplicationPackage: danger >=3 never exposes the credential", async () => {

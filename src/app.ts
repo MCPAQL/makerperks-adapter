@@ -50,6 +50,12 @@ export interface AppOptions extends DataSourceOptions {
   /** The authenticated subject, stamped onto proposals as `proposed_by` (#73 attribution). */
   proposer?: string;
   /**
+   * #97: operator allowlist of trusted apply-form hosts (e.g. `*.typeform.com`, `docs.google.com`).
+   * On the credential auto-expose path, an apply URL on the program's own domain OR one of these
+   * hosts may carry a `scoped_token`; any other host withholds it. Empty/unset = on-domain only.
+   */
+  actionUrlFormHosts?: readonly string[];
+  /**
    * Whether this session's principal is an operator (#90). Gates accept_flow / set_acceptance_mode.
    * Local/stdio is implicitly an operator (true); a hosted session resolves it from the operator
    * policy; the read-only worker never registers acceptance so it is moot there. Defaults to false
@@ -67,6 +73,8 @@ interface RouterStores {
   overlayMirror?: OverlayMirror;
   proposer?: string;
   operator?: boolean;
+  /** #97: operator allowlist of trusted apply-form hosts for the credential auto-expose URL gate. */
+  actionUrlFormHosts?: readonly string[];
 }
 
 /** Assemble a router over already-loaded data + flow overlay. EXECUTE/CRUDE ops need a store. */
@@ -138,6 +146,7 @@ export function buildRouter(
       options.sessionStore,
       options.profileStore,
       options.vaultCrypto, // danger-tiered credential delivery into the submission package (#91)
+      options.actionUrlFormHosts, // #97: trusted apply-form hosts for the credential auto-expose gate
     );
   }
   if (options.profileStore) {

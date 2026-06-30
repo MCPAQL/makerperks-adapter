@@ -60,6 +60,8 @@ export function registerExecuteOperations(
   // The credential vault (#91) — when wired, a danger ≤ 2 flow's credential is decrypted into the
   // submission package for the agent; danger ≥ 3 never exposes it. Absent → credentials stay pending.
   vault?: VaultCrypto,
+  // #97: operator allowlist of trusted apply-form hosts for the credential auto-expose URL gate.
+  formHosts?: readonly string[],
 ): void {
   router.register({
     name: "start_application",
@@ -340,7 +342,16 @@ export function registerExecuteOperations(
             flow,
             { ...execution, inputs: mergedInputs },
             userRecord?.profile,
-            { vault, credential: credentialEntry },
+            {
+              vault,
+              credential: credentialEntry,
+              // #97: anchor the apply-URL domain check to the program's own URL, gate on the source
+              // feed's trust, and honor the operator form-host allowlist.
+              anchorUrl: program.url,
+              feedTrust: data.feedTrust(program.feed),
+              formHosts,
+              feed: program.feed,
+            },
           );
           // Whether the credential was ACTUALLY opened into the package (danger ≤ 2 + a vault + a
           // credential field to fill) — drives the audit + the log, so neither over-claims.
@@ -360,7 +371,8 @@ export function registerExecuteOperations(
               ? "perform the request"
               : "complete it in a browser";
           did =
-            `prepared the application package for ${flow.submission.action_url ?? "?"} — the agent should ${verb} ` +
+            // #97: use the normalized package URL (raw flow text is untrusted), not flow.submission.
+            `prepared the application package for ${applicationPackage.action_url ?? "?"} — the agent should ${verb} ` +
             `with the assembled inputs and report the outcome via submit_step (result)` +
             (credentialLabel
               ? `; credential ${credentialLabel} ${credentialExposed ? "included" : "held out-of-band"}`

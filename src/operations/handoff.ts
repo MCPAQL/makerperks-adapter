@@ -15,6 +15,23 @@ import type {
 import type { Execution } from "../session/state.js";
 import type { MakerProfile, VaultEntry } from "../session/profile.js";
 import type { VaultCrypto } from "./../session/vault.js";
+import {
+  buildProvenance,
+  HANDOFF_UNTRUSTED_FIELDS,
+  isExposureUrlAllowed,
+  normalizeActionUrl,
+  normalizeOptionalText,
+  normalizeTextList,
+  normalizeUntrustedText,
+  UNTRUSTED_LIMITS,
+  type Provenance,
+} from "../data/untrusted.js";
+
+/** Provenance of the directory data behind a package — surfaced so the agent knows the source feed. */
+export interface ProvenanceContext {
+  feed?: string;
+  feedTrust?: "trusted" | "untrusted";
+}
 
 /**
  * Project the maker profile into candidate application inputs. Only fields the profile actually
@@ -65,6 +82,8 @@ export interface HandoffPackage {
   confidence: Confidence;
   gaps: string[];
   eligibility_notice: string;
+  /** #97: which fields are untrusted third-party directory data (to act on, never as instructions). */
+  provenance: Provenance;
 }
 
 function eligibilityNotice(flow: ApplicationFlow): string {
@@ -86,6 +105,7 @@ export function buildHandoff(
   flow: ApplicationFlow,
   execution: Execution,
   profile?: MakerProfile,
+  provenanceCtx?: ProvenanceContext,
 ): HandoffPackage {
   // The execution's accumulated inputs win over profile-derived defaults.
   const known: Record<string, unknown> = {
@@ -96,13 +116,14 @@ export function buildHandoff(
   const assembled: HandoffAssembledInput[] = [];
   const pending: HandoffPendingInput[] = [];
   for (const ri of flow.required_inputs) {
+    const note = normalizeOptionalText(ri.note, UNTRUSTED_LIMITS.note);
     if (ri.source === "credential") {
       pending.push({
         key: ri.key,
         type: ri.type,
         required: ri.required,
         source: ri.source,
-        note: `${ri.note ? `${ri.note}; ` : ""}supply out-of-band — never exposed in the handoff`,
+        note: `${note ? `${note}; ` : ""}supply out-of-band — never exposed in the handoff`,
         reason: "credential",
       });
       continue;
@@ -116,26 +137,43 @@ export function buildHandoff(
         type: ri.type,
         required: ri.required,
         source: ri.source,
-        note: ri.note,
+        note,
         reason: "missing",
       });
     }
   }
 
+  // #97: feed/flow text is untrusted — normalize it and constrain the apply URL before the agent
+  // ever sees it. A URL dropped for an unsafe scheme is surfaced as a gap, never silently blanked.
+  const gaps = normalizeTextList(flow.gaps);
+  const action_url = normalizeActionUrl(flow.submission.action_url);
+  if (flow.submission.action_url && !action_url) {
+    gaps.push(
+      "apply URL was rejected (not an https/mailto URL) and withheld from the package",
+    );
+  }
+
   return {
     slug: flow.slug,
     provider: flow.provider,
-    title: flow.title,
+    title: normalizeUntrustedText(flow.title, UNTRUSTED_LIMITS.title),
     automatability: flow.automatability,
-    action_url: flow.submission.action_url,
+    action_url,
     method: flow.submission.method,
-    instructions: flow.submission.instructions,
+    instructions: normalizeOptionalText(
+      flow.submission.instructions,
+      UNTRUSTED_LIMITS.instructions,
+    ),
     assembled_inputs: assembled,
     pending_inputs: pending,
     danger_level: flow.danger_level,
     confidence: flow.confidence,
-    gaps: flow.gaps,
+    gaps,
     eligibility_notice: eligibilityNotice(flow),
+    provenance: buildProvenance(HANDOFF_UNTRUSTED_FIELDS, {
+      feed: provenanceCtx?.feed,
+      feedTrust: provenanceCtx?.feedTrust,
+    }),
   };
 }
 
@@ -153,10 +191,26 @@ export async function buildApplicationPackage(
   flow: ApplicationFlow,
   execution: Execution,
   profile?: MakerProfile,
-  opts?: { vault?: VaultCrypto; credential?: VaultEntry },
+  opts?: {
+    vault?: VaultCrypto;
+    credential?: VaultEntry;
+    /** #97: the program's own URL (directory identity) — anchors the apply-URL domain check. */
+    anchorUrl?: string;
+    /** #97: trust of the source feed; an `untrusted` feed never auto-exposes a credential. */
+    feedTrust?: "trusted" | "untrusted";
+    /** #97: operator-configured trusted form hosts (e.g. `*.typeform.com`). */
+    formHosts?: readonly string[];
+    /** Source feed id, surfaced in the package's provenance envelope. */
+    feed?: string;
+  },
 ): Promise<HandoffPackage> {
-  const pkg = buildHandoff(flow, execution, profile);
-  const { vault, credential } = opts ?? {};
+  const { vault, credential, anchorUrl, feedTrust, formHosts, feed } = opts ?? {};
+  const pkg = buildHandoff(flow, execution, profile, { feed, feedTrust });
+
+  // The credential auto-expose path (#95) additionally requires (#97) that the source feed is
+  // trusted AND the normalized apply URL is on the program's own registrable domain (or an operator
+  // form-host allowlist) — so an injected off-domain redirect never carries a live secret. On a
+  // failure the credential stays pending (fail-safe), annotated with why, for out-of-band supply.
   if (
     vault &&
     credential &&
@@ -165,13 +219,25 @@ export async function buildApplicationPackage(
   ) {
     const idx = pkg.pending_inputs.findIndex((p) => p.reason === "credential");
     if (idx >= 0) {
-      const target = pkg.pending_inputs[idx];
-      const value = await vault.open({
-        ciphertext: credential.ciphertext,
-        iv: credential.iv,
-      });
-      pkg.assembled_inputs.push({ key: target.key, value, source: "credential" });
-      pkg.pending_inputs.splice(idx, 1);
+      const urlAllowed =
+        feedTrust !== "untrusted" &&
+        isExposureUrlAllowed({ actionUrl: pkg.action_url, anchorUrl, formHosts });
+      if (urlAllowed) {
+        const target = pkg.pending_inputs[idx];
+        const value = await vault.open({
+          ciphertext: credential.ciphertext,
+          iv: credential.iv,
+        });
+        pkg.assembled_inputs.push({ key: target.key, value, source: "credential" });
+        pkg.pending_inputs.splice(idx, 1);
+      } else {
+        const target = pkg.pending_inputs[idx];
+        const why =
+          feedTrust === "untrusted"
+            ? "source feed is untrusted — credential withheld, supply out-of-band"
+            : "apply URL is not on the provider's domain — verify the URL before supplying the credential";
+        target.note = target.note ? `${target.note}; ${why}` : why;
+      }
     }
   }
   return pkg;

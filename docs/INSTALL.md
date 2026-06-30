@@ -173,6 +173,34 @@ Set `vars` in the wrangler config (or the dashboard):
 
 Optional: `FLOWS_URL` (a hosted `flows.json` overlay; otherwise the bundled default).
 
+### Feed trust + apply-URL safety (credential exposure)
+Directory feeds and user-proposed flows are **untrusted input**: their free text is normalized
+(control/zero-width/bidi characters stripped) and labeled with a provenance envelope before any
+agent sees it, and an `action_url` is constrained to `https`/`mailto`.
+
+A stored `scoped_token` is auto-filled into the application package **only** when the apply URL is on
+the program's **own registrable domain**. If a provider's real apply form lives on a third-party
+host (Typeform, Google Forms, …), allowlist those hosts so the token can still be delivered there
+(stateful worker only):
+
+```jsonc
+"vars": {
+  // comma-separated; `*.host` matches any subdomain
+  "ACTION_URL_FORM_HOSTS": "*.typeform.com, docs.google.com"
+}
+```
+
+Feed trust: the **primary** feed is `trusted`; any **additional** federated feed is `untrusted`
+unless you mark it so — and an `untrusted` feed's programs never auto-fill a credential. Mark a feed
+trusted, or pin its content, with the JSON-array form of `PERKS_URLS`:
+
+```jsonc
+"PERKS_URLS": "[{\"id\":\"grants\",\"source\":\"https://b.example.com/grants.json\",\"trust\":\"trusted\",\"integrity\":\"<sha256-hex-of-the-raw-body>\"}]"
+```
+
+When `integrity` is set it is verified on load; a mismatch drops that feed (fail-soft) and a
+verifying hash classifies the feed `trusted`. (`signature`/`publicKey` are reserved for signed feeds.)
+
 ### Deploy
 ```sh
 npm run deploy       # read-only worker  (wrangler.jsonc)

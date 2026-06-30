@@ -18,6 +18,7 @@ import { McpAgent } from "agents/mcp";
 import { buildRouter } from "./app.js";
 import { createMcpServer } from "./mcp.js";
 import { DataSource, parseSourcesEnv } from "./data/source.js";
+import { parseFormHostsEnv } from "./data/untrusted.js";
 import { FlowSource } from "./data/flow-source.js";
 import {
   freshSessionState,
@@ -75,6 +76,8 @@ interface Env {
   PERKS_URLS?: string;
   /** A flows.json URL for the curated overlay (#47); unset = the bundled default. */
   FLOWS_URL?: string;
+  /** #97: comma-separated trusted apply-form hosts (e.g. `*.typeform.com,docs.google.com`). */
+  ACTION_URL_FORM_HOSTS?: string;
   MCP_RATE_LIMITER: RateLimit;
   // Set as Worker secrets on the dev Worker (`wrangler secret put ... -c wrangler.dev.jsonc`).
   GITHUB_CLIENT_ID?: string;
@@ -221,6 +224,7 @@ export class MakerPerksMcpAgent extends McpAgent<Env, SessionState, UserProps> {
         overlayMirror: kvOverlayMirror(this.env.OVERLAY_KV),
         proposer: userId, // attribute proposals to the authenticated subject (#73)
         operator: this.props?.isOperator ?? false, // operator-gated acceptance (#90); fail safe
+        actionUrlFormHosts: parseFormHostsEnv(this.env.ACTION_URL_FORM_HOSTS), // #97 form-host allowlist
       }),
     );
   }
