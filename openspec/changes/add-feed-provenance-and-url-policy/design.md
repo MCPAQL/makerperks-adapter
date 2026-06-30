@@ -40,11 +40,19 @@ A dropped URL is surfaced as a gap, never silently blanked.
 ## Registrable-domain check
 
 No public-suffix-list dependency (proportionate). `registrableDomain(host)` takes the last two
-labels, with a small known multi-part-suffix set (`co.uk`, `com.au`, `co.jp`, `org.uk`, …) taking
-three. `sameRegistrableDomain(a, b)` is true on exact host, subdomain relationship, or shared
-registrable domain. Over-matching tolerance is acceptable and intentional: the worst case is
-exposing a token on a *sibling subdomain of the legitimate provider*, which the maintainer accepts —
-the control exists to stop `evil.com`, not to police provider subdomains.
+labels, with a curated multi-part-suffix set taking three. That set has two groups: classic ccTLD
+second-levels (`co.uk`, `com.au`, …) **and** common multi-tenant app-hosting platforms (`github.io`,
+`vercel.app`, `netlify.app`, `pages.dev`, `workers.dev`, `herokuapp.com`, `web.app`, …). The hosting
+group matters: without it, two *unrelated tenants* on the same platform (`acme.vercel.app` vs
+`phisher.vercel.app`) would share a registrable domain, so an unrelated tenant could pass the
+exposure gate for a program hosted there. `sameRegistrableDomain(a, b)` is true on exact host,
+subdomain relationship, or shared registrable domain.
+
+The set is a curated subset, **not** a full PSL: a program on some *other* shared host not listed
+still over-matches at the platform level. The residual worst case is then exposing a token on a
+sibling subdomain of the legitimate provider — which the maintainer accepts — and operators relying
+on the gate for a program hosted on an unlisted shared platform should pin the apply host via
+`ACTION_URL_FORM_HOSTS`. New platforms can be added to the set.
 
 ## Provenance envelope
 
@@ -82,9 +90,12 @@ out of its JSON slot to spoof the envelope.
 
 `buildApplicationPackage` opts gain `anchorUrl?` (= `program.url`), `feedTrust?`, `formHosts?`.
 The existing condition `vault && credential && kind === "scoped_token" && danger ≤ 2` is extended
-with: `feedTrust !== "untrusted"` AND (`sameRegistrableDomain(actionHost, anchorHost)` OR
-`actionHost ∈ formHosts`). Any failure → credential stays in `pending_inputs` with a clear reason;
-the preview path (`buildHandoff`) remains entirely secret-free as before.
+with: `feedTrust === "trusted"` AND (`sameRegistrableDomain(actionHost, anchorHost)` OR
+`actionHost ∈ formHosts`). The feed check is **fail-closed** — only an explicit `"trusted"` exposes;
+`undefined` (a caller that didn't resolve trust) withholds. The production caller (`execute.ts`)
+always passes a concrete `data.feedTrust(program.feed)` (unknown feed → `untrusted`). Any failure →
+credential stays in `pending_inputs` with a clear reason; the preview path (`buildHandoff`) remains
+entirely secret-free as before.
 
 ## Why not content-based injection filtering
 

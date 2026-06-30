@@ -66,6 +66,9 @@ interface NormalizedFeed {
   source: string;
   prefix: string;
   trust: "trusted" | "untrusted";
+  /** Whether `trust` was set explicitly in config (vs. the positional default) — an explicit value
+   *  is never auto-upgraded by a verifying `integrity`. */
+  trustExplicit: boolean;
   integrity?: string;
   signature?: string;
   publicKey?: string;
@@ -143,6 +146,7 @@ function normalizeFeeds(opts: DataSourceOptions): NormalizedFeed[] {
       id: cfg.id ?? deriveFeedId(cfg.source),
       prefix: cfg.prefix ?? "",
       trust,
+      trustExplicit: cfg.trust !== undefined,
       ...(cfg.integrity !== undefined ? { integrity: cfg.integrity } : {}),
       ...(cfg.signature !== undefined ? { signature: cfg.signature } : {}),
       ...(cfg.publicKey !== undefined ? { publicKey: cfg.publicKey } : {}),
@@ -277,8 +281,10 @@ export class DataSource {
         statuses.push(status);
         continue;
       }
-      // #97: a feed whose declared integrity verified (loadFeed didn't throw) is trusted.
-      if (feed.integrity) status.trust = "trusted";
+      // #97: a feed whose declared integrity verified (loadFeed didn't throw) is trusted — but an
+      // EXPLICIT `trust` in config always wins (so `{ trust: "untrusted", integrity }` stays untrusted:
+      // pin for reproducibility without granting the credential-exposure path).
+      if (feed.integrity && !feed.trustExplicit) status.trust = "trusted";
       const { programs: _p, ...meta } = payload;
       if (!primaryMeta) primaryMeta = meta; // the highest-priority OK feed's meta
       for (const program of payload.programs) {

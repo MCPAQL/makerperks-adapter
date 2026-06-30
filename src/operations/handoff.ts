@@ -208,9 +208,11 @@ export async function buildApplicationPackage(
   const pkg = buildHandoff(flow, execution, profile, { feed, feedTrust });
 
   // The credential auto-expose path (#95) additionally requires (#97) that the source feed is
-  // trusted AND the normalized apply URL is on the program's own registrable domain (or an operator
-  // form-host allowlist) — so an injected off-domain redirect never carries a live secret. On a
-  // failure the credential stays pending (fail-safe), annotated with why, for out-of-band supply.
+  // explicitly trusted AND the normalized apply URL is on the program's own registrable domain (or an
+  // operator form-host allowlist) — so an injected off-domain redirect never carries a live secret.
+  // The feed check is fail-CLOSED: only `feedTrust === "trusted"` exposes; `undefined` (a caller that
+  // didn't resolve trust) withholds. On any failure the credential stays pending (fail-safe),
+  // annotated with why, for out-of-band supply.
   if (
     vault &&
     credential &&
@@ -219,8 +221,9 @@ export async function buildApplicationPackage(
   ) {
     const idx = pkg.pending_inputs.findIndex((p) => p.reason === "credential");
     if (idx >= 0) {
+      const feedOk = feedTrust === "trusted";
       const urlAllowed =
-        feedTrust !== "untrusted" &&
+        feedOk &&
         isExposureUrlAllowed({ actionUrl: pkg.action_url, anchorUrl, formHosts });
       if (urlAllowed) {
         const target = pkg.pending_inputs[idx];
@@ -232,10 +235,9 @@ export async function buildApplicationPackage(
         pkg.pending_inputs.splice(idx, 1);
       } else {
         const target = pkg.pending_inputs[idx];
-        const why =
-          feedTrust === "untrusted"
-            ? "source feed is untrusted — credential withheld, supply out-of-band"
-            : "apply URL is not on the provider's domain — verify the URL before supplying the credential";
+        const why = !feedOk
+          ? `source feed is not trusted (${feedTrust ?? "unknown"}) — credential withheld, supply out-of-band`
+          : "apply URL is not on the provider's domain — verify the URL before supplying the credential";
         target.note = target.note ? `${target.note}; ${why}` : why;
       }
     }

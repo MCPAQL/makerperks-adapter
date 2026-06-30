@@ -199,7 +199,16 @@ trusted, or pin its content, with the JSON-array form of `PERKS_URLS`:
 ```
 
 When `integrity` is set it is verified on load; a mismatch drops that feed (fail-soft) and a
-verifying hash classifies the feed `trusted`. (`signature`/`publicKey` are reserved for signed feeds.)
+verifying hash classifies the feed `trusted` — **unless** you also set `trust` explicitly, in which
+case your value wins (so `{ "trust": "untrusted", "integrity": "…" }` pins the content for
+reproducibility while still withholding the credential-exposure path). (`signature`/`publicKey` are
+reserved for signed feeds.)
+
+> Note: the apply-URL domain gate uses a curated registrable-domain map that includes common
+> multi-tenant hosting platforms (`github.io`, `vercel.app`, `netlify.app`, `pages.dev`,
+> `workers.dev`, …), so unrelated tenants on the same platform don't share a domain. It is **not** a
+> full public-suffix list — if a program's home page lives on some other shared host, add the exact
+> apply host to `ACTION_URL_FORM_HOSTS` rather than relying on the domain anchor.
 
 ### Deploy
 ```sh

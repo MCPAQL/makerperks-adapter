@@ -85,11 +85,16 @@ export function normalizeActionUrl(input: unknown): string | undefined {
   return s;
 }
 
-// A small set of multi-part public suffixes so `apply.example.co.uk` anchors to `example.co.uk`,
-// not `co.uk`. Intentionally short (no public-suffix-list dependency) — over-matching only risks
-// treating a sibling subdomain of the *legitimate* provider as same-domain, which is acceptable for
-// this gate (it exists to stop an off-domain redirect, not to police provider subdomains).
+// Multi-part public suffixes so `apply.example.co.uk` anchors to `example.co.uk`, not `co.uk`.
+// Two groups: (a) classic ccTLD second-level suffixes, and (b) common multi-tenant app-hosting
+// platforms where each tenant gets a subdomain — without these, two UNRELATED tenants (e.g.
+// `acme.vercel.app` and `phisher.vercel.app`) would share a registrable domain and an unrelated
+// tenant could pass the credential-exposure gate for a program hosted on the same platform. This is
+// a curated subset, NOT a full public-suffix list: a program on some other shared host not listed
+// here still over-matches at the platform level — operators relying on the exposure gate for such a
+// program should pin the apply host via `ACTION_URL_FORM_HOSTS`. New platforms can be added here.
 const MULTI_PART_SUFFIXES = new Set([
+  // (a) ccTLD second-level
   "co.uk",
   "org.uk",
   "gov.uk",
@@ -102,6 +107,31 @@ const MULTI_PART_SUFFIXES = new Set([
   "com.br",
   "co.in",
   "co.za",
+  // (b) common multi-tenant app-hosting platforms (tenant = the label below the suffix)
+  "github.io",
+  "gitlab.io",
+  "vercel.app",
+  "netlify.app",
+  "pages.dev",
+  "workers.dev",
+  "web.app",
+  "firebaseapp.com",
+  "herokuapp.com",
+  "onrender.com",
+  "fly.dev",
+  "glitch.me",
+  "surge.sh",
+  "repl.co",
+  "replit.app",
+  "appspot.com",
+  "azurewebsites.net",
+  "blogspot.com",
+  "wordpress.com",
+  "wixsite.com",
+  "webflow.io",
+  "framer.app",
+  "framer.website",
+  "notion.site",
 ]);
 
 /** Best-effort registrable domain (eTLD+1) for `host`, without a public-suffix-list dependency. */

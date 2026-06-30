@@ -121,6 +121,29 @@ test("a verifying integrity hash classifies an extra feed as trusted (#97)", asy
   assert.equal(ds.feedTrust("pinned"), "trusted");
 });
 
+test("an explicit trust:untrusted is NOT auto-upgraded by a verifying integrity (#97)", async () => {
+  const body = onePerk();
+  const integrity = await sha256Hex(body);
+  const fetchImpl = async () => new Response(body, { status: 200 });
+  const ds = new DataSource({
+    sources: [
+      { id: "primary", source: "https://a.test/perks.json" },
+      {
+        id: "pinned-untrusted",
+        source: "https://b.test/perks.json",
+        prefix: "x",
+        trust: "untrusted",
+        integrity, // pinned for reproducibility, but operator marked it untrusted
+      },
+    ],
+    fetchImpl,
+  });
+  await ds.load();
+  // the feed loads (integrity verifies, programs served) but stays untrusted (operator's explicit call)
+  assert.equal(ds.feedTrust("pinned-untrusted"), "untrusted");
+  assert.equal(ds.programs().length, 2);
+});
+
 test("an integrity mismatch drops the feed fail-soft; siblings still serve (#97)", async () => {
   const fetchImpl = async () => new Response(onePerk(), { status: 200 });
   const ds = new DataSource({

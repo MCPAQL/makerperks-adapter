@@ -197,6 +197,7 @@ test("buildApplicationPackage: danger <=2 on the provider's own domain includes 
     vault,
     credential,
     anchorUrl: "https://apply.example", // same registrable domain as action_url → exposure allowed
+    feedTrust: "trusted",
   });
   const cred = pkg.assembled_inputs.find((i) => i.key === "billing_account_id");
   assert.ok(cred, "credential moved to assembled");
@@ -216,6 +217,7 @@ test("buildApplicationPackage: an injected off-domain apply URL withholds the cr
     vault,
     credential,
     anchorUrl: "https://evil.example.com",
+    feedTrust: "trusted", // feed is fine; the URL gate is what must withhold
   });
   assert.equal(
     pkg.assembled_inputs.some((i) => i.key === "billing_account_id"),
@@ -237,6 +239,7 @@ test("buildApplicationPackage: a same-domain subdomain apply URL still exposes t
     vault,
     credential,
     anchorUrl: "https://apply.example",
+    feedTrust: "trusted",
   });
   assert.ok(
     pkg.assembled_inputs.find((i) => i.key === "billing_account_id"),
@@ -258,6 +261,7 @@ test("buildApplicationPackage: an operator form-host allowlist permits an off-do
     credential,
     anchorUrl: "https://apply.example",
     formHosts: ["*.typeform.com"],
+    feedTrust: "trusted",
   });
   assert.ok(
     pkg.assembled_inputs.find((i) => i.key === "billing_account_id"),
@@ -280,7 +284,27 @@ test("buildApplicationPackage: an untrusted source feed never auto-exposes the c
   );
   assert.match(
     pkg.pending_inputs.find((i) => i.key === "billing_account_id").note,
-    /feed is untrusted/,
+    /feed is not trusted/,
+  );
+});
+
+test("buildApplicationPackage: an undefined feedTrust withholds the credential (fail-closed) (#97)", async () => {
+  const { vault, credential } = await makeVaultAndEntry("secret-billing-123");
+  // on-domain URL, but the caller did not resolve feed trust → must NOT expose (fail-closed).
+  const pkg = await buildApplicationPackage(webFlow, execution(), profile({}), {
+    vault,
+    credential,
+    anchorUrl: "https://apply.example",
+    // feedTrust omitted
+  });
+  assert.equal(
+    pkg.assembled_inputs.some((i) => i.key === "billing_account_id"),
+    false,
+    "an unresolved feed trust must not carry the credential",
+  );
+  assert.match(
+    pkg.pending_inputs.find((i) => i.key === "billing_account_id").note,
+    /not trusted \(unknown\)/,
   );
 });
 
