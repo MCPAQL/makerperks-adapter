@@ -8,6 +8,7 @@
 import { ok, err } from "../core/wire.js";
 import type { Router } from "../core/router.js";
 import { appendAudit } from "../session/profile.js";
+import { AUTH_METHODS, isAuthMethod } from "../data/auth-methods.js";
 import type {
   MakerProfile,
   ProfileIdentity,
@@ -61,6 +62,26 @@ function cleanIdentity(raw: unknown): { identity?: ProfileIdentity; error?: stri
       links.push({ label: l.label, url: l.url });
     }
     identity.links = links;
+  }
+  if (raw.auth_preferences !== undefined) {
+    if (!Array.isArray(raw.auth_preferences)) {
+      return { error: "identity.auth_preferences must be an array" };
+    }
+    const seen = new Set<string>();
+    const prefs: string[] = [];
+    for (const m of raw.auth_preferences) {
+      if (!isAuthMethod(m)) {
+        return {
+          error: `identity.auth_preferences entries must be one of: ${AUTH_METHODS.join(", ")}`,
+        };
+      }
+      if (!seen.has(m)) {
+        // order preserved, duplicates collapsed to first occurrence
+        seen.add(m);
+        prefs.push(m);
+      }
+    }
+    identity.auth_preferences = prefs;
   }
   return { identity };
 }
@@ -163,7 +184,9 @@ export function registerProfileOperations(router: Router, store: ProfileStore): 
         required: false,
         description:
           "Identity fields: { name?, email?, location?: { region?, country? }, " +
-          "links?: [{ label, url }] }. All non-secret.",
+          "links?: [{ label, url }], auth_preferences?: string[] }. All non-secret. " +
+          "auth_preferences ranks preferred signup methods (most-preferred first), e.g. " +
+          '["github", "google", "email_password"].',
       },
     },
     returns: "An object with the created `profile`.",
@@ -227,7 +250,9 @@ export function registerProfileOperations(router: Router, store: ProfileStore): 
         required: true,
         description:
           "Identity fields to merge: { name?, email?, location?: { region?, country? }, " +
-          "links?: [{ label, url }] }. Provided fields replace; omitted fields are kept.",
+          "links?: [{ label, url }], auth_preferences?: string[] }. Provided fields replace; " +
+          "omitted fields are kept. auth_preferences is an ordered signup-method preference " +
+          '(e.g. ["github", "google", "email_password"]); set the whole list to change order.',
       },
     },
     returns: "An object with the updated `profile`.",

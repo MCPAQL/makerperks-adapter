@@ -71,6 +71,27 @@ test("the brief's target contract matches what the validator enforces", () => {
   assert.ok(errs.some((e) => e.includes("automatability")));
 });
 
+test("the contract advertises oauth_provider, matching the validator (#103)", () => {
+  const contract = curatedFlowContract();
+  assert.ok(Array.isArray(contract.enums.oauth_provider));
+  assert.ok(contract.enums.oauth_provider.includes("github"));
+  // an advertised provider on an oauth_signup flow validates…
+  const advertised = contract.enums.oauth_provider[0];
+  assert.deepEqual(
+    collectCuratedFlowErrors({
+      "x/y": { submission: { method: "oauth_signup", oauth_providers: [advertised] } },
+    }),
+    [],
+  );
+  // …and a value it does not advertise is rejected (no drift between brief and gate).
+  const errs = collectCuratedFlowErrors({
+    "x/y": {
+      submission: { method: "oauth_signup", oauth_providers: ["definitely-not-valid"] },
+    },
+  });
+  assert.ok(errs.some((e) => e.includes("oauth_providers")));
+});
+
 test("get_discovery_brief errors on an unknown slug", async () => {
   const { router } = await buildApp({ source: FIXTURE });
   const res = await d(router, "get_discovery_brief", { slug: "nope/nope" });

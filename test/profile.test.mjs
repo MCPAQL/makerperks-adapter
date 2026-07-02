@@ -91,6 +91,43 @@ test("update_profile merges identity field-wise (location half is kept)", async 
   assert.equal(id.location.country, "CA"); // half updated
 });
 
+test("update_profile persists ordered auth_preferences; get_profile returns them (#103)", async () => {
+  const { router } = await withProfile();
+  await router.dispatch({ operation: "create_profile", params: {} });
+  const updated = await router.dispatch({
+    operation: "update_profile",
+    params: {
+      identity: { auth_preferences: ["github", "google", "github", "email_password"] },
+    },
+  });
+  // order preserved, duplicate "github" collapsed
+  assert.deepEqual(updated.data.profile.identity.auth_preferences, [
+    "github",
+    "google",
+    "email_password",
+  ]);
+  const got = await router.dispatch({ operation: "get_profile" });
+  assert.deepEqual(got.data.profile.identity.auth_preferences, [
+    "github",
+    "google",
+    "email_password",
+  ]);
+});
+
+test("update_profile rejects an unknown auth_preferences method (#103)", async () => {
+  const { router } = await withProfile();
+  await router.dispatch({ operation: "create_profile", params: {} });
+  const r = await router.dispatch({
+    operation: "update_profile",
+    params: { identity: { auth_preferences: ["github", "myspace"] } },
+  });
+  assert.equal(r.success, false);
+  assert.match(r.error.message, /auth_preferences/);
+  // nothing persisted
+  const got = await router.dispatch({ operation: "get_profile" });
+  assert.equal(got.data.profile.identity.auth_preferences, undefined);
+});
+
 test("update before create is NOT_FOUND", async () => {
   const { router } = await withProfile();
   const r = await router.dispatch({

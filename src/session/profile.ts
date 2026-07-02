@@ -22,6 +22,12 @@ export interface ProfileIdentity {
   email?: string;
   location?: { region?: string; country?: string };
   links?: ProfileLink[];
+  /**
+   * #103: ordered, non-secret signup/auth-method preferences (most-preferred first), e.g.
+   * `["github", "google", "email_password"]`. Consumed by the handoff to steer the maker toward
+   * their preferred provider button on an `oauth_signup` flow. Validated against `AUTH_METHODS`.
+   */
+  auth_preferences?: string[];
 }
 
 /** A maker project (e.g. DollhouseMCP, MCP-AQL) applications can reference. */

@@ -10,6 +10,7 @@
 import type { PerkProgram } from "./source.js";
 import type { FlowSource } from "./flow-source.js";
 import { resolveStatus, type ProgramStatus } from "./status.js";
+import { OAUTH_PROVIDERS, isOAuthProvider } from "./auth-methods.js";
 
 export type Automatability = "api" | "web_only" | "manual_review" | "unknown";
 export type Confidence = "derived" | "curated";
@@ -39,6 +40,12 @@ export interface Submission {
   /** The API endpoint when `method` is `api`. */
   endpoint?: string;
   instructions?: string;
+  /**
+   * #103: for an `oauth_signup` flow, the OAuth providers the signup page offers (e.g.
+   * `["github", "google", "azure"]`). Descriptive only — lets the handoff resolve the maker's
+   * preferred provider button. Validated against `OAUTH_PROVIDERS`.
+   */
+  oauth_providers?: string[];
 }
 
 export interface Redemption {
@@ -119,6 +126,8 @@ export interface CuratedFlowContract {
   enums: {
     automatability: readonly string[];
     submission_method: readonly string[];
+    /** #103: valid `submission.oauth_providers` entries (only on an `oauth_signup` method). */
+    oauth_provider: readonly string[];
     redemption_type: readonly string[];
     input_source: readonly string[];
     input_type: readonly string[];
@@ -142,6 +151,7 @@ export function curatedFlowContract(): CuratedFlowContract {
     enums: {
       automatability: AUTOMATABILITY,
       submission_method: SUBMISSION_METHODS,
+      oauth_provider: OAUTH_PROVIDERS,
       redemption_type: REDEMPTION_TYPES,
       input_source: INPUT_SOURCES,
       input_type: INPUT_TYPES,
@@ -217,10 +227,26 @@ export function collectCuratedFlowErrors(data: unknown): string[] {
     if (r.submission !== undefined) {
       if (!isObject(r.submission)) {
         errors.push(`${at}/submission must be an object`);
-      } else if (!SUBMISSION_METHODS.includes(r.submission.method as string)) {
-        errors.push(
-          `${at}/submission/method must be one of ${SUBMISSION_METHODS.join(", ")}`,
-        );
+      } else {
+        if (!SUBMISSION_METHODS.includes(r.submission.method as string)) {
+          errors.push(
+            `${at}/submission/method must be one of ${SUBMISSION_METHODS.join(", ")}`,
+          );
+        }
+        const providers = r.submission.oauth_providers;
+        if (providers !== undefined) {
+          if (!Array.isArray(providers) || !providers.every(isOAuthProvider)) {
+            errors.push(
+              `${at}/submission/oauth_providers must be a string[] of ${OAUTH_PROVIDERS.join(", ")}`,
+            );
+          } else if (r.submission.method !== "oauth_signup") {
+            // oauth_providers only makes sense on an OAuth signup — otherwise the handoff would
+            // surface OAuth buttons for a plain web-form/api flow.
+            errors.push(
+              `${at}/submission/oauth_providers is only valid when method is "oauth_signup"`,
+            );
+          }
+        }
       }
     }
     if (r.redemption !== undefined) {
