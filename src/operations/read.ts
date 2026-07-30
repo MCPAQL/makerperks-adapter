@@ -61,8 +61,17 @@ export function registerReadOperations(
       status: {
         type: "string",
         required: false,
-        enum: ["Active", "Discontinued", "Beta", "Upcoming"],
-        description: "Filter by program status.",
+        enum: [
+          "Active",
+          "Discontinued",
+          "Beta",
+          "Upcoming",
+          "Defunct",
+          "Paused",
+          "Unverified",
+        ],
+        description:
+          "Filter by program status (the last three are the accelerators-feed vocabulary).",
       },
       min_value: {
         type: "number",
@@ -180,6 +189,108 @@ export function registerReadOperations(
       });
       const results = fuse.search(query, { limit }).map((r) => r.item);
       return ok({ count: results.length, programs: results });
+    },
+  });
+
+  router.register({
+    name: "upcoming_deadlines",
+    semanticCategory: "READ",
+    description:
+      "Programs with an application deadline (`next_deadline`) inside a day window, soonest " +
+      "first with days remaining — plus programs that explicitly declare no deadline " +
+      "(rolling / apply-anytime). Programs from feeds without deadline fields (e.g. perks) " +
+      "never appear.",
+    params: {
+      within_days: {
+        type: "number",
+        required: false,
+        description: "Deadline window in days from today (default 60, max 730).",
+      },
+      feed: {
+        type: "string",
+        required: false,
+        description: "Restrict to one source feed id (#88 federation).",
+      },
+      include_rolling: {
+        type: "boolean",
+        required: false,
+        description:
+          "Also list programs explicitly marked rolling (next_deadline: null). Default true.",
+      },
+      limit: {
+        type: "number",
+        required: false,
+        description: "Maximum dated results (default all in window).",
+      },
+    },
+    returns:
+      "An object with `as_of`, `within_days`, `deadlines` (soonest-first, each with " +
+      "`days_left`), and `rolling`.",
+    handler: async (params) => {
+      await data.ensureLoaded();
+      const raw = (params.within_days as number | undefined) ?? 60;
+      const windowDays = Math.min(Math.max(1, Math.floor(raw)), 730);
+      const feed = params.feed as string | undefined;
+      const limit = params.limit as number | undefined;
+      let pool = await applyStatusExclusion(data.programs(), false);
+      if (feed) pool = pool.filter((p) => p.feed === feed);
+      // A radar never books the dead: Defunct/Paused are landscape memory, not
+      // deadlines. Unverified stays (surfaced via `status` on each entry).
+      pool = pool.filter((p) => p.status !== "Defunct" && p.status !== "Paused");
+      const asOf = new Date().toISOString().slice(0, 10);
+      const dayMs = 24 * 60 * 60 * 1000;
+      // Rolling is EXPLICIT (next_deadline: null); an absent field means the feed has no
+      // deadline concept at all, so its programs belong in neither list.
+      let deadlines = pool
+        .filter(
+          (p): p is PerkProgram & { next_deadline: string } =>
+            typeof p.next_deadline === "string",
+        )
+        .map((p) => ({
+          program: p,
+          days_left: Math.round(
+            (Date.parse(p.next_deadline) - Date.parse(asOf)) / dayMs,
+          ),
+        }))
+        .filter((d) => d.days_left >= 0 && d.days_left <= windowDays)
+        .sort((a, b) => a.days_left - b.days_left)
+        .map(({ program, days_left }) => ({
+          slug: program.slug,
+          title: program.title,
+          provider: program.provider,
+          feed: program.feed,
+          next_deadline: program.next_deadline,
+          days_left,
+          deadline_note: program.deadline_note ?? undefined,
+          status: program.status,
+          value_display: program.value_display,
+          format: program.format,
+          apply_url: program.apply_url ?? program.url,
+        }));
+      if (limit !== undefined) deadlines = deadlines.slice(0, limit);
+      const rolling =
+        params.include_rolling === false
+          ? []
+          : pool
+              .filter((p) => p.next_deadline === null)
+              .sort((a, b) => (b.max_value ?? 0) - (a.max_value ?? 0))
+              .map((p) => ({
+                slug: p.slug,
+                title: p.title,
+                provider: p.provider,
+                feed: p.feed,
+                status: p.status,
+                value_display: p.value_display,
+                format: p.format,
+                apply_url: p.apply_url ?? p.url,
+              }));
+      return ok({
+        as_of: asOf,
+        within_days: windowDays,
+        count: deadlines.length,
+        deadlines,
+        rolling,
+      });
     },
   });
 
