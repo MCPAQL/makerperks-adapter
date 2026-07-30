@@ -25,6 +25,7 @@ test("introspect lists the READ ops (incl. the flow + discovery ops)", async () 
     "list_sources",
     "search_programs",
     "start_flow_discovery",
+    "upcoming_deadlines",
     "verify_flow_proposal",
   ]);
 });

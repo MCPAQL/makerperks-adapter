@@ -42,6 +42,11 @@
   "vars": {
     "OPERATOR_REPO": "MCPAQL/makerperks-adapter",
     "OPERATOR_LOGINS": "mickdarling",
+    // Federation (#88): perks (primary, trusted) + the accelerators feed (prefix `accel`,
+    // positional untrusted default — browsing needs no trust; the credential auto-expose
+    // gate stays closed). Raw-GitHub URL until the MakerPerks site publishes
+    // /accelerators.json. See openspec change serve-accelerators-feed.
+    "PERKS_URLS": "[\"https://www.makerperks.com/perks.json\", {\"id\": \"accelerators\", \"source\": \"https://raw.githubusercontent.com/mickdarling/makerperks/main/datasets/accelerators/accelerators.json\", \"prefix\": \"accel\"}]",
   },
   // Per-IP rate-limit backstop (mirrors the live worker). 100 requests / 10s per IP.
   "ratelimits": [

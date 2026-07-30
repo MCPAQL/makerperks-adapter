@@ -12,19 +12,42 @@ export interface PerkProgram {
   title: string;
   provider: string;
   url: string;
+  /** Optional in a family payload; normalized to [] on ingest (see load()). */
   audience: string[];
   max_value: number;
   sources: string[];
   verified: string;
   tags?: string[];
-  value_type?: "credits" | "discount" | "free_tier";
+  /** Open vocabulary across the perks.json family (perks: credits/discount/free_tier;
+   *  accelerators add investment/grant/services). */
+  value_type?: string;
   currency?: string;
   min_value?: number;
   value_display?: string;
   region?: string;
-  status?: "Active" | "Discontinued" | "Beta" | "Upcoming";
+  /** Open vocabulary across the family; unknown values resolve fail-open via
+   *  resolveStatus() (data/status.ts). */
+  status?: string;
   aggregator?: boolean;
   unlocks?: string[];
+  // Accelerator-family fields (datasets/accelerators/accelerators.json). Optional and
+  // type-checked when present; feeds without them are simply not deadline-family.
+  apply_url?: string;
+  category?: string;
+  stage?: string[];
+  equity?: string;
+  cohort_model?: string;
+  format?: string;
+  location?: string;
+  next_cohort?: string | null;
+  /** ISO date, or an EXPLICIT null meaning rolling/apply-anytime. An absent field
+   *  means the feed's schema has no deadlines at all — the distinction drives
+   *  upcoming_deadlines' rolling list. */
+  next_deadline?: string | null;
+  deadline_note?: string | null;
+  eligibility?: string;
+  fit?: string;
+  fit_note?: string;
   /** Server-set provenance (#88): the id of the feed this program was ingested from. */
   feed?: string;
 }
@@ -154,8 +177,31 @@ function normalizeFeeds(opts: DataSourceOptions): NormalizedFeed[] {
   });
 }
 
-const STATUSES = ["Active", "Discontinued", "Beta", "Upcoming"];
-const VALUE_TYPES = ["credits", "discount", "free_tier"];
+// Family-optional string fields: type-checked when present, never required.
+// (value_type/status are open vocabularies across the perks.json family.)
+const OPTIONAL_STRING_FIELDS = [
+  "value_type",
+  "status",
+  "currency",
+  "region",
+  "value_display",
+  "apply_url",
+  "category",
+  "equity",
+  "cohort_model",
+  "format",
+  "location",
+  "eligibility",
+  "fit",
+  "fit_note",
+] as const;
+// Family-optional nullable string fields (an explicit null is meaningful — see
+// PerkProgram.next_deadline).
+const OPTIONAL_NULLABLE_STRING_FIELDS = [
+  "next_cohort",
+  "next_deadline",
+  "deadline_note",
+] as const;
 
 function isObject(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && !Array.isArray(v);
@@ -188,39 +234,32 @@ export function collectPayloadErrors(data: unknown): string[] {
     if (typeof program.max_value !== "number" || !Number.isFinite(program.max_value)) {
       errors.push(`${at}/max_value must be a number`);
     }
-    if (!isStringArray(program.audience))
+    // audience is family-optional (accelerators have none); normalized to [] on ingest.
+    if (program.audience !== undefined && !isStringArray(program.audience))
       errors.push(`${at}/audience must be a string[]`);
     if (!isStringArray(program.sources))
       errors.push(`${at}/sources must be a string[]`);
-    if (program.tags !== undefined && !isStringArray(program.tags)) {
-      errors.push(`${at}/tags must be a string[]`);
+    for (const key of ["tags", "unlocks", "stage"]) {
+      if (program[key] !== undefined && !isStringArray(program[key])) {
+        errors.push(`${at}/${key} must be a string[]`);
+      }
     }
-    if (program.unlocks !== undefined && !isStringArray(program.unlocks)) {
-      errors.push(`${at}/unlocks must be a string[]`);
+    for (const key of OPTIONAL_STRING_FIELDS) {
+      if (program[key] !== undefined && typeof program[key] !== "string") {
+        errors.push(`${at}/${key} must be a string`);
+      }
     }
-    if (
-      program.value_type !== undefined &&
-      !VALUE_TYPES.includes(program.value_type as string)
-    ) {
-      errors.push(`${at}/value_type must be one of ${VALUE_TYPES.join(", ")}`);
-    }
-    if (program.status !== undefined && !STATUSES.includes(program.status as string)) {
-      errors.push(`${at}/status must be one of ${STATUSES.join(", ")}`);
-    }
-    if (program.currency !== undefined && typeof program.currency !== "string") {
-      errors.push(`${at}/currency must be a string`);
+    for (const key of OPTIONAL_NULLABLE_STRING_FIELDS) {
+      if (
+        program[key] !== undefined &&
+        program[key] !== null &&
+        typeof program[key] !== "string"
+      ) {
+        errors.push(`${at}/${key} must be a string or null`);
+      }
     }
     if (program.min_value !== undefined && typeof program.min_value !== "number") {
       errors.push(`${at}/min_value must be a number`);
-    }
-    if (program.region !== undefined && typeof program.region !== "string") {
-      errors.push(`${at}/region must be a string`);
-    }
-    if (
-      program.value_display !== undefined &&
-      typeof program.value_display !== "string"
-    ) {
-      errors.push(`${at}/value_display must be a string`);
     }
     if (program.aggregator !== undefined && typeof program.aggregator !== "boolean") {
       errors.push(`${at}/aggregator must be a boolean`);
@@ -293,7 +332,13 @@ export class DataSource {
           status.collisions_dropped += 1; // a higher-priority feed already owns this slug
           continue;
         }
-        bySlug.set(slug, { ...program, slug, feed: feed.id }); // server-set provenance + prefix
+        // Server-set provenance + prefix; audience normalizes to [] (family-optional).
+        bySlug.set(slug, {
+          ...program,
+          audience: program.audience ?? [],
+          slug,
+          feed: feed.id,
+        });
         status.count += 1;
       }
       statuses.push(status);
