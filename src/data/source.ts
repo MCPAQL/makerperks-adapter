@@ -46,6 +46,8 @@ export interface PerkProgram {
   next_deadline?: string | null;
   deadline_note?: string | null;
   eligibility?: string;
+  /** NEVER populated from a feed (stripped at ingest — personal data). Present on served
+   *  records only as the session user's own overlay (operations/read.ts). */
   fit?: string;
   fit_note?: string;
   /** Server-set provenance (#88): the id of the feed this program was ingested from. */
@@ -333,8 +335,11 @@ export class DataSource {
           continue;
         }
         // Server-set provenance + prefix; audience normalizes to [] (family-optional).
+        // fit/fit_note are STRIPPED whatever the feed ships (per-user-fit-annotations):
+        // fit judgments are personal data, overlaid per-user at the read edge only.
+        const { fit: _fit, fit_note: _fitNote, ...rest } = program;
         bySlug.set(slug, {
-          ...program,
+          ...rest,
           audience: program.audience ?? [],
           slug,
           feed: feed.id,

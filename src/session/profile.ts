@@ -102,6 +102,17 @@ export interface FlowHealth {
  * append-only audit log (#50), and per-flow health keyed by slug (#47 piece B). All optional so a
  * record can exist with only some populated.
  */
+export const FIT_LEVELS = ["high", "medium", "low"] as const;
+export type FitLevel = (typeof FIT_LEVELS)[number];
+
+/** One user's fit judgment for one program (per-user-fit-annotations). The note is the user's
+ * own words — returned only to that user, never shared or fed back into the directory. */
+export interface FitAnnotation {
+  fit: FitLevel;
+  note?: string;
+  updatedAt: number;
+}
+
 export interface UserRecord {
   profile?: MakerProfile;
   vault?: VaultEntry[];
@@ -111,6 +122,10 @@ export interface UserRecord {
    * override; absent statuses fall back to DEFAULT. Per-user — how you view the directory by status
    * is personal (the accepted flows stay shared). */
   statusPolicy?: Partial<Record<ProgramStatus, Partial<StatusEntry>>>;
+  /** This user's program-fit annotations, keyed by SERVED slug (post-prefix). Personal data —
+   * overlaid onto directory reads for this user only; feed-supplied fit is stripped at ingest.
+   * See openspec change per-user-fit-annotations. */
+  fitAnnotations?: Record<string, FitAnnotation>;
 }
 
 /** Append an audit entry to a record (bounded to the newest AUDIT_CAP), returning a new record. */

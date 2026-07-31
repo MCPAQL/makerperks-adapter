@@ -17,6 +17,7 @@ import { registerFlowExportOperations } from "./operations/flow-export.js";
 import { registerFlowReconcileOperations } from "./operations/flow-reconcile.js";
 import { registerPerksExportOperations } from "./operations/perks-export.js";
 import { registerStatusOperations } from "./operations/status.js";
+import { registerFitOperations } from "./operations/fit.js";
 import { DataSource, type DataSourceOptions } from "./data/source.js";
 import { FlowSource } from "./data/flow-source.js";
 import type { SessionStore } from "./session/state.js";
@@ -155,6 +156,9 @@ export function buildRouter(
     registerFlowHealthOperations(router, data, flows, options.profileStore);
     // Per-user directory status policy (#36 add-directory-status) — the personal view/proposal knobs.
     registerStatusOperations(router, options.profileStore);
+    // Per-user program-fit annotations (per-user-fit-annotations) — personal data, overlaid
+    // onto reads for this user only; needs the directory to validate slugs at set time.
+    registerFitOperations(router, data, options.profileStore);
     // The vault needs both a per-user store and a key to seal/open; register only with both.
     if (options.vaultCrypto) {
       registerVaultOperations(router, options.profileStore, options.vaultCrypto);
