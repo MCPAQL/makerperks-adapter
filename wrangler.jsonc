@@ -1,18 +1,52 @@
 {
+  // MAIN deployment — makerperks.mcpaql.com — the STATEFUL worker (promoted from dev
+  // 2026-07-31): real per-user GitHub OAuth, per-user profile/vault/fit Durable Objects,
+  // shared flow registry. Deploy with `npm run deploy`. The dev twin (wrangler.dev.jsonc,
+  // makerperks-dev.mcpaql.com) keeps its own OAuth grant store and secrets.
+  //
+  // REQUIRED SECRETS (set before the first stateful deploy — see docs in wrangler.dev.jsonc):
+  //   wrangler secret put GITHUB_CLIENT_ID       # OAuth app w/ callback https://makerperks.mcpaql.com/callback
+  //   wrangler secret put GITHUB_CLIENT_SECRET
+  //   wrangler secret put VAULT_KEY              # base64 of 32 random bytes — DISTINCT from dev's
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "makerperks-adapter",
-  "main": "dist/worker.js",
+  "main": "dist/worker-stateful.js",
   "compatibility_date": "2026-06-03",
   "compatibility_flags": ["nodejs_compat"],
   "workers_dev": true,
   "observability": { "enabled": true },
   "routes": [{ "pattern": "makerperks.mcpaql.com", "custom_domain": true }],
   "kv_namespaces": [
+    // This worker's own OAuth grant store — never shared with dev's (ff6361cd…).
     { "binding": "OAUTH_KV", "id": "609312bdeb5e4379afe0b61bd123a1a8" },
-    // SHARED overlay mirror (#87) — same namespace the stateful worker's reconcile_flows writes to;
-    // this read-only endpoint reads it to serve operator-blessed flows (no redeploy).
+    // SHARED overlay mirror (#87) — reconcile_flows publishes accepted flows here; both
+    // workers read the same namespace.
     { "binding": "OVERLAY_KV", "id": "486d676413c145a7bb5c81553960d611" },
   ],
+  "durable_objects": {
+    "bindings": [
+      { "name": "MCP_OBJECT", "class_name": "MakerPerksMcpAgent" },
+      { "name": "PROFILE_OBJECT", "class_name": "MakerProfileDO" },
+      { "name": "REGISTRY_OBJECT", "class_name": "FlowRegistryDO" },
+    ],
+  },
+  // First stateful deploy on this worker — all three DO classes arrive together.
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["MakerPerksMcpAgent", "MakerProfileDO", "FlowRegistryDO"],
+    },
+  ],
+  "vars": {
+    // Operator policy (#90): admin on OPERATOR_REPO (read with the user's own token) OR a
+    // login in OPERATOR_LOGINS. OPERATOR_REPO active bumps OAuth scope to public_repo.
+    "OPERATOR_REPO": "MCPAQL/makerperks-adapter",
+    "OPERATOR_LOGINS": "mickdarling",
+    // Federation (#88): the MakerPerks published perks.json (primary, trusted) + OUR
+    // accelerators feed (this repo's feeds/, prefix `accel`, untrusted-secondary default —
+    // browsing needs no trust and the credential auto-expose gate stays closed).
+    "PERKS_URLS": "[\"https://www.makerperks.com/perks.json\", {\"id\": \"accelerators\", \"source\": \"https://raw.githubusercontent.com/MCPAQL/makerperks-adapter/main/feeds/accelerators.json\", \"prefix\": \"accel\"}]",
+  },
   // Per-IP rate-limit backstop (anti-abuse / anti-loop). 100 requests / 10s per IP.
   "ratelimits": [
     {
