@@ -6,7 +6,7 @@ import Fuse from "fuse.js";
 import { ok, err } from "../core/wire.js";
 import type { Router } from "../core/router.js";
 import type { DataSource, PerkProgram } from "../data/source.js";
-import type { ProfileStore } from "../session/profile.js";
+import type { FitAnnotation, ProfileStore } from "../session/profile.js";
 import { statusEntryFor } from "../data/status.js";
 
 export function registerReadOperations(
@@ -26,6 +26,19 @@ export function registerReadOperations(
     const stored = (await store.get())?.statusPolicy;
     return programs.filter((p) => statusEntryFor(p, stored).listing !== "exclude");
   };
+  // The session user's own fit annotations (per-user-fit-annotations) — the ONLY source of
+  // fit on served records (feeds are stripped at ingest). No store → no fit, ever.
+  const fitAnnotations = async (): Promise<Record<string, FitAnnotation>> =>
+    store ? ((await store.get())?.fitAnnotations ?? {}) : {};
+  const overlayFit = <T extends { slug: string }>(
+    items: T[],
+    ann: Record<string, FitAnnotation>,
+  ): T[] =>
+    items.map((item) => {
+      const a = ann[item.slug];
+      if (!a) return item;
+      return { ...item, fit: a.fit, ...(a.note ? { fit_note: a.note } : {}) };
+    });
   router.register({
     name: "list_programs",
     semanticCategory: "READ",
@@ -114,6 +127,7 @@ export function registerReadOperations(
         results = results.filter((p) => p.max_value >= minValue);
       results = await applyStatusExclusion(results, params.include_inactive === true);
       if (limit !== undefined) results = results.slice(0, limit);
+      results = overlayFit(results, await fitAnnotations());
 
       return ok({ count: results.length, programs: results });
     },
@@ -138,7 +152,8 @@ export function registerReadOperations(
       if (!program) {
         return err("NOT_FOUND_RESOURCE", `no program with slug: ${slug}`, { slug });
       }
-      return ok({ program });
+      const [decorated] = overlayFit([program], await fitAnnotations());
+      return ok({ program: decorated });
     },
   });
 
@@ -187,7 +202,10 @@ export function registerReadOperations(
           { name: "slug", weight: 1 },
         ],
       });
-      const results = fuse.search(query, { limit }).map((r) => r.item);
+      const results = overlayFit(
+        fuse.search(query, { limit }).map((r) => r.item),
+        await fitAnnotations(),
+      );
       return ok({ count: results.length, programs: results });
     },
   });
@@ -284,12 +302,13 @@ export function registerReadOperations(
                 format: p.format,
                 apply_url: p.apply_url ?? p.url,
               }));
+      const ann = await fitAnnotations();
       return ok({
         as_of: asOf,
         within_days: windowDays,
         count: deadlines.length,
-        deadlines,
-        rolling,
+        deadlines: overlayFit(deadlines, ann),
+        rolling: overlayFit(rolling, ann),
       });
     },
   });
