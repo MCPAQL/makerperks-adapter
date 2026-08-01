@@ -32,7 +32,7 @@ export interface PerkProgram {
   unlocks?: string[];
   // Accelerator-family fields (datasets/accelerators/accelerators.json). Optional and
   // type-checked when present; feeds without them are simply not deadline-family.
-  apply_url?: string;
+  apply_url?: string | null;
   category?: string;
   stage?: string[];
   equity?: string;
@@ -187,7 +187,6 @@ const OPTIONAL_STRING_FIELDS = [
   "currency",
   "region",
   "value_display",
-  "apply_url",
   "category",
   "equity",
   "cohort_model",
@@ -200,6 +199,7 @@ const OPTIONAL_STRING_FIELDS = [
 // Family-optional nullable string fields (an explicit null is meaningful — see
 // PerkProgram.next_deadline).
 const OPTIONAL_NULLABLE_STRING_FIELDS = [
+  "apply_url", // dormant/defunct programs publish an explicit null (real-data 2026-08-01)
   "next_cohort",
   "next_deadline",
   "deadline_note",

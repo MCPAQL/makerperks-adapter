@@ -121,7 +121,7 @@
       "title": "Dead Program",
       "provider": "dead",
       "url": "https://dead.example.com",
-      "apply_url": "https://dead.example.com/apply",
+      "apply_url": null,
       "category": "ai",
       "tags": ["ai"],
       "stage": ["pre-seed"],
